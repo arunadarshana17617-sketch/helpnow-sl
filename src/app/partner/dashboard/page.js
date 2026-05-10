@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { redirect } from 'next/navigation';
 
 import {
   CheckCircle2, XCircle, Clock, Loader2, CalendarDays,
@@ -11,9 +10,6 @@ import {
   AlertCircle, PlayCircle, BadgeCheck
 } from 'lucide-react';
 
-export default function PartnerDashboard() {
-  redirect('/bookings');
-}
 const STATUS_CONFIG = {
   pending:     { label: 'Pending',     color: 'bg-yellow-100 text-yellow-700 border-yellow-200',  dot: 'bg-yellow-400' },
   confirmed:   { label: 'Confirmed',   color: 'bg-blue-100 text-blue-700 border-blue-200',        dot: 'bg-blue-400'   },
@@ -30,7 +26,7 @@ export default function PartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
-  const [actionLoading, setActionLoading] = useState(null); // booking id of the one being updated
+  const [actionLoading, setActionLoading] = useState(null);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
@@ -102,7 +98,7 @@ export default function PartnerDashboard() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-blue-950">My Bookings</h1>
-            <p className="text-sm text-gray-500">{session?.user?.name} � Partner Dashboard</p>
+            <p className="text-sm text-gray-500">{session?.user?.name} · Partner Dashboard</p>
           </div>
           <button
             onClick={fetchBookings}
@@ -118,10 +114,10 @@ export default function PartnerDashboard() {
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { key: 'pending',   label: 'Pending',   icon: Clock,        color: 'text-yellow-500' },
-            { key: 'confirmed', label: 'Confirmed',  icon: BadgeCheck,   color: 'text-blue-500'   },
-            { key: 'in_progress', label: 'Active',   icon: PlayCircle,   color: 'text-purple-500' },
-            { key: 'completed', label: 'Done',        icon: CheckCircle2, color: 'text-green-500'  },
+            { key: 'pending',     label: 'Pending',  icon: Clock,        color: 'text-yellow-500' },
+            { key: 'confirmed',   label: 'Confirmed', icon: BadgeCheck,   color: 'text-blue-500'   },
+            { key: 'in_progress', label: 'Active',    icon: PlayCircle,   color: 'text-purple-500' },
+            { key: 'completed',   label: 'Done',      icon: CheckCircle2, color: 'text-green-500'  },
           ].map(({ key, label, icon: Icon, color }) => (
             <div key={key} className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
               <Icon size={22} className={`${color} mx-auto mb-1`} />
@@ -164,7 +160,7 @@ export default function PartnerDashboard() {
             </div>
             <p className="text-gray-500 font-medium">No bookings found</p>
             <p className="text-sm text-gray-400 mt-1">
-              {filter === 'all' ? 'Customers book karanna giya giya pennayi' : `No ${filter} bookings`}
+              {filter === 'all' ? 'Customers henduwa bookings pennayi' : `No ${filter} bookings`}
             </p>
           </div>
         )}
@@ -186,7 +182,6 @@ export default function PartnerDashboard() {
                   className="flex items-start gap-4 p-4 cursor-pointer hover:bg-gray-50 transition"
                   onClick={() => setExpandedId(isExpanded ? null : booking._id)}
                 >
-                  {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
                     <User size={18} className="text-orange-500" />
                   </div>
@@ -199,7 +194,7 @@ export default function PartnerDashboard() {
                         {cfg.label}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5 truncate">{booking.serviceProfession} � {booking.serviceCategory}</p>
+                    <p className="text-sm text-gray-500 mt-0.5 truncate">{booking.serviceProfession} · {booking.serviceCategory}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                       <span className="flex items-center gap-1">
                         <CalendarDays size={12} />
@@ -250,13 +245,11 @@ export default function PartnerDashboard() {
                       </div>
                     </div>
 
-                    {/* Job description */}
                     <div className="bg-blue-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Job Description</p>
                       <p className="text-sm text-gray-700">{booking.jobDescription}</p>
                     </div>
 
-                    {/* Customer notes */}
                     {booking.customerNotes && (
                       <div className="bg-orange-50 rounded-xl p-3">
                         <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">Customer Notes</p>
@@ -264,7 +257,6 @@ export default function PartnerDashboard() {
                       </div>
                     )}
 
-                    {/* Action buttons based on current status */}
                     <div className="flex gap-2 flex-wrap pt-1">
                       {booking.status === 'pending' && (
                         <>
