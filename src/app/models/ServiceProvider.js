@@ -5,7 +5,7 @@ const ServiceSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
-    enum: ['electrician', 'plumber', 'mason', 'carpenter', 'painter', 'ac'],
+    enum: ['electrician', 'plumber', 'mason', 'carpenter', 'painter', 'ac', 'gardener'],
   },
   profession: {
     type: String,
@@ -71,6 +71,10 @@ const ServiceProviderSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
+  },
+  whatsapp: {
+    type: String,
+    default: null,
   },
   password: {
     type: String,

@@ -8,8 +8,99 @@ import {
   Search, MapPin, Star, Users, ShieldCheck, 
   Wrench, Menu, X, Facebook, Twitter, Instagram, Phone,
   CheckCircle2, Clock, ThumbsUp, ChevronRight, Award,
-  Hammer, Droplets, Zap, Paintbrush, Wind, Briefcase
+  Hammer, Droplets, Zap, Paintbrush, Wind, Briefcase, Leaf
 } from 'lucide-react';
+
+// Profile Link Component - Fetches role from API
+function ProfileLink() {
+  const [role, setRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/user-role')
+      .then(r => r.json())
+      .then(d => {
+        setRole(d.role);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setRole('customer');
+        setIsLoading(false);
+      });
+  }, []);
+
+  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  const subtitle = role === 'partner' ? 'Partner profile' : 'View and edit profile';
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="flex-1">
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1"></div>
+          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={href}
+      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
+    >
+      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div>
+        <p className="font-semibold">My Profile</p>
+        <p className="text-xs text-gray-400">{subtitle || 'View and edit profile'}</p>
+      </div>
+    </Link>
+  );
+}
+
+// Mobile Profile Link Component - For mobile menu
+function MobileProfileLink({ onNavigate }) {
+  const [role, setRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/user-role')
+      .then(r => r.json())
+      .then(d => {
+        setRole(d.role);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setRole('customer');
+        setIsLoading(false);
+      });
+  }, []);
+
+  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  const label = role === 'partner' ? 'Partner Dashboard' : 'My Profile';
+
+  if (isLoading) {
+    return (
+      <div className="w-full py-3 px-4">
+        <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
+    >
+      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      {label}
+    </Link>
+  );
+}
 
 const HomeUI = () => {
   const router = useRouter();
@@ -37,6 +128,8 @@ const HomeUI = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const closeMobileMenu = () => setIsMenuOpen(false);
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 overflow-x-hidden">
@@ -78,7 +171,7 @@ const HomeUI = () => {
                 </Link>
               ))}
               
-              {/* Join as Pro Button - NEW */}
+              {/* Join as Pro Button */}
               <button 
                 onClick={() => router.push('/partner')}
                 className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${
@@ -109,7 +202,7 @@ const HomeUI = () => {
                     </span>
                   </button>
                   {/* Dropdown */}
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                     <div className="px-4 py-3 border-b border-gray-100">
                       <div className="flex items-center gap-3">
                         {session.user?.image ? (
@@ -121,21 +214,27 @@ const HomeUI = () => {
                         )}
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{session.user?.name}</p>
-                          <p className="text-xs text-gray-500 truncate max-w-[140px]">{session.user?.email}</p>
+                          <p className="text-xs text-gray-500 truncate max-w-[150px]">{session.user?.email}</p>
                         </div>
                       </div>
                     </div>
-                    <Link href="/partner/profile"
+
+                    {/* My Profile - role aware with API fetch */}
+                    <ProfileLink />
+
+                    {/* My Bookings */}
+                    <Link href="/bookings"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
                     >
-                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                       </div>
                       <div>
-                        <p className="font-semibold">My Profile</p>
-                        <p className="text-xs text-gray-400">View and edit profile</p>
+                        <p className="font-semibold">My Bookings</p>
+                        <p className="text-xs text-gray-400">View all bookings</p>
                       </div>
                     </Link>
+
                     <div className="border-t border-gray-100 my-1"></div>
                     <button onClick={() => signOut()}
                       className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
@@ -186,16 +285,16 @@ const HomeUI = () => {
                   key={item} 
                   href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
                   className="block py-3 px-4 text-lg font-semibold hover:bg-blue-50 rounded-xl transition"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={closeMobileMenu}
                 >
                   {item}
                 </Link>
               ))}
               
-              {/* Mobile Join as Pro Button - NEW */}
+              {/* Mobile Join as Pro Button */}
               <button 
                 onClick={() => {
-                  setIsMenuOpen(false);
+                  closeMobileMenu();
                   router.push('/partner');
                 }}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
@@ -223,20 +322,28 @@ const HomeUI = () => {
                       <p className="text-xs text-gray-500 truncate max-w-[200px]">{session.user?.email}</p>
                     </div>
                   </div>
-                  {/* My Profile */}
+                  
+                  {/* My Profile - role aware with API fetch */}
+                  <MobileProfileLink onNavigate={closeMobileMenu} />
+                  
+                  {/* My Bookings */}
                   <Link
-                    href="/partner/profile"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
+                    href="/bookings"
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-3 w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl transition"
                   >
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                     </div>
-                    My Profile
+                    My Bookings
                   </Link>
+                  
                   {/* Sign Out */}
                   <button
-                    onClick={() => { signOut(); setIsMenuOpen(false); }}
+                    onClick={() => { 
+                      signOut(); 
+                      closeMobileMenu(); 
+                    }}
                     className="flex items-center gap-3 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition"
                   >
                     <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
@@ -247,7 +354,10 @@ const HomeUI = () => {
                 </div>
               ) : (
                 <button
-                  onClick={() => { signIn('google'); setIsMenuOpen(false); }}
+                  onClick={() => { 
+                    signIn('google'); 
+                    closeMobileMenu(); 
+                  }}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
                 >
                   Login / Sign Up
@@ -263,30 +373,21 @@ const HomeUI = () => {
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           {/* Dark overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/70 z-10"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/23 via-black/13 to-black/70 z-10"></div>
           
           {/* Background image */}
           <div className="absolute inset-0">
             <picture>
               {/* Mobile-specific image */}
-              <source 
-                media="(max-width: 768px)" 
-                srcSet="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=90&w=800&h=1200"
-              />
-              {/* Desktop image */}
-              <source 
-                media="(min-width: 769px)" 
-                srcSet="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=90&w=2000&h=1000"
-              />
               <img 
-                src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=90&w=2000" 
-                alt="Expert craftsman working on construction project in Sri Lanka" 
-                className="w-full h-full"
-                style={{
-                  objectFit: 'cover',
-                  objectPosition: 'center',
-                }}
-              />
+  src="/images/Gemini_Generated_Image_wnvejnwnvejnwnve.png"
+  alt="Expert craftsman working on construction project in Sri Lanka" 
+  className="w-full h-full"
+  style={{
+    objectFit: 'cover',
+    objectPosition: 'center',
+  }}
+/>
             </picture>
           </div>
           
@@ -495,7 +596,7 @@ const HomeUI = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
           {[
             { 
               name: 'Electrician', 
@@ -516,7 +617,7 @@ const HomeUI = () => {
               description: 'Brickwork, concrete, tiling'
             },
             { 
-              name: 'Carpenter', 
+              name: 'Mechanic', 
               icon: <Wrench size={32} />, 
               gradient: 'from-amber-500 to-amber-600',
               description: 'Furniture, cabinets, repairs'
@@ -533,12 +634,18 @@ const HomeUI = () => {
               gradient: 'from-cyan-500 to-cyan-600',
               description: 'Repair, maintenance, install'
             },
+            { 
+              name: 'Gardener', 
+              icon: <Leaf size={32} />, 
+              gradient: 'from-green-500 to-green-600',
+              description: 'Lawn, pruning, landscaping'
+            },
           ].map((cat, index) => (
-  <div 
-    key={index} 
-    onClick={() => router.push(`/trucks?category=${cat.name.toLowerCase().replace(' service', '')}`)}
-    className="group relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer hover:-translate-y-2"
-  >
+            <div 
+              key={index} 
+              onClick={() => router.push(`/trucks?category=${cat.name.toLowerCase().replace(' service', '').replace(' ', '')}`)}
+              className="group relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer hover:-translate-y-2"
+            >
               <div className={`absolute inset-0 bg-gradient-to-br ${cat.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
               <div className="relative p-6 text-center group-hover:text-white transition-colors duration-300">
                 <div className={`w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br ${cat.gradient} text-white flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
@@ -595,7 +702,7 @@ const HomeUI = () => {
         </div>
       </section>
 
-      {/* Join as Pro Banner - NEW */}
+      {/* Join as Pro Banner */}
       <section className="py-16 bg-gradient-to-r from-blue-600 to-blue-800 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 mb-6">
@@ -704,7 +811,7 @@ const HomeUI = () => {
               </div>
             </div>
 
-            {/* For Professionals - NEW Section */}
+            {/* For Professionals */}
             <div>
               <h4 className="text-lg font-bold mb-6">For Professionals</h4>
               <ul className="space-y-3 text-blue-200">

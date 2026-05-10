@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession, signIn, signOut } from "next-auth/react";
+import Image from 'next/image';
 import {
   Wrench,
   Star,
@@ -34,6 +35,97 @@ import {
   Loader2
 } from 'lucide-react';
 
+// Profile Link Component - Fetches role from API
+function ProfileLink() {
+  const [role, setRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/user-role')
+      .then(r => r.json())
+      .then(d => {
+        setRole(d.role);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setRole('customer');
+        setIsLoading(false);
+      });
+  }, []);
+
+  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  const subtitle = role === 'partner' ? 'Partner profile' : 'View and edit profile';
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="flex-1">
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1"></div>
+          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={href}
+      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
+    >
+      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div>
+        <p className="font-semibold">My Profile</p>
+        <p className="text-xs text-gray-400">{subtitle || 'View and edit profile'}</p>
+      </div>
+    </Link>
+  );
+}
+
+// Mobile Profile Link Component - For mobile menu
+function MobileProfileLink({ onNavigate }) {
+  const [role, setRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/user-role')
+      .then(r => r.json())
+      .then(d => {
+        setRole(d.role);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setRole('customer');
+        setIsLoading(false);
+      });
+  }, []);
+
+  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  const label = role === 'partner' ? 'Partner Dashboard' : 'My Profile';
+
+  if (isLoading) {
+    return (
+      <div className="w-full py-3 px-4">
+        <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
+    >
+      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      {label}
+    </Link>
+  );
+}
+
 const BecomePartner = () => {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -55,6 +147,8 @@ const BecomePartner = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const closeMobileMenu = () => setIsMenuOpen(false);
 
   // Register button click - login na nam Google ekata, login nam register ekata
   const handleRegisterClick = async () => {
@@ -198,6 +292,7 @@ const BecomePartner = () => {
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
+            {/* Logo */}
             <Link href="/" className="flex items-center gap-2 flex-shrink-0">
               <div className={`p-2 rounded-lg text-white transform hover:rotate-12 transition-transform ${
                 scrolled ? 'bg-blue-600' : 'bg-blue-600/90'
@@ -211,6 +306,7 @@ const BecomePartner = () => {
               </span>
             </Link>
 
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6 lg:gap-8">
               {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
                 <Link
@@ -227,21 +323,109 @@ const BecomePartner = () => {
                 </Link>
               ))}
 
+              {/* Join as Pro Button */}
               <button
                 onClick={handleRegisterClick}
-                className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2.5 rounded-full transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2"
+                disabled={isRedirecting}
+                className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${
+                  scrolled
+                    ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                    : 'bg-white text-blue-900 hover:bg-gray-100'
+                } disabled:opacity-70`}
               >
-                <Briefcase size={18} />
-                Join as Pro
+                {isRedirecting ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Briefcase size={18} />
+                )}
+                {isRedirecting ? 'Redirecting...' : 'Join as Pro'}
               </button>
+
+              {/* Auth Button - Desktop */}
+              {status === "loading" ? (
+                <div className="w-24 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+              ) : session ? (
+                <div className="relative group">
+                  <button className="flex items-center gap-2 focus:outline-none">
+                    {session.user?.image ? (
+                      <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold">
+                        {session.user?.name?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <span className={`hidden lg:inline font-medium ${scrolled ? 'text-gray-700' : 'text-white'}`}>
+                      {session.user?.name?.split(' ')[0]}
+                    </span>
+                  </button>
+                  {/* Dropdown */}
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        {session.user?.image ? (
+                          <Image src={session.user.image} alt="" width={36} height={36} className="rounded-full" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                            {session.user?.name?.[0]?.toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{session.user?.name}</p>
+                          <p className="text-xs text-gray-500 truncate max-w-[150px]">{session.user?.email}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* My Profile - role aware with API fetch */}
+                    <ProfileLink />
+
+                    {/* My Bookings */}
+                    <Link href="/bookings"
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
+                    >
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold">My Bookings</p>
+                        <p className="text-xs text-gray-400">View all bookings</p>
+                      </div>
+                    </Link>
+
+                    <div className="border-t border-gray-100 my-1"></div>
+                    <button onClick={() => signOut()}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
+                    >
+                      <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold">Sign Out</p>
+                        <p className="text-xs text-gray-400">Logout from account</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => signIn('google')}
+                  className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${
+                    scrolled ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-white text-blue-900 hover:bg-gray-100'
+                  }`}
+                >
+                  Login / Sign Up
+                </button>
+              )}
             </div>
 
+            {/* Mobile Menu Button */}
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`p-2 rounded-lg transition-colors ${
                   scrolled ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white'
                 }`}
+                aria-label="Toggle menu"
               >
                 {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
@@ -249,6 +433,7 @@ const BecomePartner = () => {
           </div>
         </div>
 
+        {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-xl">
             <div className="px-4 py-6 space-y-4">
@@ -257,18 +442,94 @@ const BecomePartner = () => {
                   key={item}
                   href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
                   className="block py-3 px-4 text-lg font-semibold hover:bg-blue-50 rounded-xl transition"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={closeMobileMenu}
                 >
                   {item}
                 </Link>
               ))}
+
+              {/* Mobile Join as Pro Button */}
               <button
-                onClick={() => { setIsMenuOpen(false); handleRegisterClick(); }}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
+                onClick={() => {
+                  closeMobileMenu();
+                  handleRegisterClick();
+                }}
+                disabled={isRedirecting}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-70"
               >
-                <Briefcase size={18} />
-                Join as Pro
+                {isRedirecting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Redirecting...
+                  </>
+                ) : (
+                  <>
+                    <Briefcase size={18} />
+                    Join as Professional
+                  </>
+                )}
               </button>
+
+              {/* Mobile Auth Section */}
+              {status === "loading" ? (
+                <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+              ) : session ? (
+                <div className="border-t border-gray-100 pt-4 space-y-2">
+                  {/* User Info */}
+                  <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
+                    {session.user?.image ? (
+                      <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold">
+                        {session.user?.name?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">{session.user?.name}</p>
+                      <p className="text-xs text-gray-500 truncate max-w-[200px]">{session.user?.email}</p>
+                    </div>
+                  </div>
+
+                  {/* My Profile - role aware with API fetch */}
+                  <MobileProfileLink onNavigate={closeMobileMenu} />
+
+                  {/* My Bookings */}
+                  <Link
+                    href="/bookings"
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-3 w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl transition"
+                  >
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    </div>
+                    My Bookings
+                  </Link>
+
+                  {/* Sign Out */}
+                  <button
+                    onClick={() => {
+                      signOut();
+                      closeMobileMenu();
+                    }}
+                    className="flex items-center gap-3 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition"
+                  >
+                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </div>
+                    Sign Out
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    signIn('google');
+                    closeMobileMenu();
+                  }}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
+                >
+                  Login / Sign Up
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -309,10 +570,20 @@ const BecomePartner = () => {
                   </div>
                   <button
                     onClick={handleRegisterClick}
-                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-full text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group"
+                    disabled={isRedirecting}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-full text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group disabled:opacity-70"
                   >
-                    <span>Complete Registration</span>
-                    <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    {isRedirecting ? (
+                      <>
+                        <Loader2 size={20} className="animate-spin" />
+                        <span>Redirecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Complete Registration</span>
+                        <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
                   </button>
                 </div>
               ) : (

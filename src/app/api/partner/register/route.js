@@ -19,6 +19,7 @@ export async function POST(request) {
     const phone = formData.get('phone');
     const password = formData.get('password');
     const photo = formData.get('photo');
+    const whatsapp = formData.get('whatsapp') || phone; // Use WhatsApp if provided, otherwise fallback to phone
     
     if (!fullName || !email || !phone || !password) {
       return NextResponse.json(
@@ -92,6 +93,7 @@ export async function POST(request) {
       fullName,
       email,
       phone,
+      whatsapp: whatsapp, // Added WhatsApp field
       password: hashedPassword,
       photo: photoUrl,
       nicFront: nicFrontUrl,

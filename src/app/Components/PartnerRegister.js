@@ -35,8 +35,8 @@ import {
   Hammer,
   Paintbrush,
   Wind,
-  Wrench as Tool,
-  Search
+  Search,
+  Leaf
 } from 'lucide-react';
 
 const PartnerRegister = () => {
@@ -49,6 +49,9 @@ const PartnerRegister = () => {
   const [citySearch, setCitySearch] = useState('');
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
+  const [categoryCounts, setCategoryCounts] = useState({});
+  const [countsLoading, setCountsLoading] = useState(true);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -56,6 +59,7 @@ const PartnerRegister = () => {
     fullName: '',
     email: '',
     phone: '',
+    whatsapp: '',        // ✅ add
     password: '',
     confirmPassword: '',
     photo: null,
@@ -95,18 +99,44 @@ const PartnerRegister = () => {
     }
   }, [session]);
 
+  // Fetch real active counts from DB
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const res = await fetch("/api/partner/category-counts");
+        if (res.ok) {
+          const data = await res.json();
+          setCategoryCounts(data.counts || {});
+        }
+      } catch (err) {
+        console.error("Failed to fetch category counts", err);
+      } finally {
+        setCountsLoading(false);
+      }
+    };
+    fetchCounts();
+  }, []);
+
   const [skillInput, setSkillInput] = useState('');
   const [areaInput, setAreaInput] = useState('');
 
-  // Categories
-  const categories = [
-    { id: 'electrician', name: 'Electrician', icon: <Zap />, count: 124 },
-    { id: 'plumber', name: 'Plumber', icon: <Droplets />, count: 98 },
-    { id: 'mason', name: 'Mason', icon: <Hammer />, count: 87 },
-    { id: 'carpenter', name: 'Carpenter', icon: <Tool />, count: 76 },
-    { id: 'painter', name: 'Painter', icon: <Paintbrush />, count: 65 },
-    { id: 'ac', name: 'AC Technician', icon: <Wind />, count: 43 }
+  // Categories — icons & labels only; counts come from DB
+  const categoryDefs = [
+    { id: 'electrician', name: 'Electrician',   icon: <Zap /> },
+    { id: 'plumber',     name: 'Plumber',        icon: <Droplets /> },
+    { id: 'mason',       name: 'Mason',           icon: <Hammer /> },
+    { id: 'carpenter',   name: 'Carpenter',       icon: <Hammer /> },
+    { id: 'painter',     name: 'Painter',         icon: <Paintbrush /> },
+    { id: 'ac',          name: 'AC Technician',   icon: <Wind /> },
+    { id: 'gardener',    name: 'Gardener',        icon: <Leaf /> },
   ];
+
+  // Merge DB counts into category list
+  const categories = categoryDefs.map((cat) => ({
+    ...cat,
+    activeCount: categoryCounts[cat.id]?.active ?? null,
+    totalCount:  categoryCounts[cat.id]?.total  ?? null,
+  }));
 
   // Districts and Cities Data
   const districtCityData = {
@@ -370,9 +400,11 @@ const PartnerRegister = () => {
   const validateStep = () => {
     switch(currentStep) {
       case 1:
+        // Only validate WhatsApp if showWhatsApp is true
+        const whatsappValid = showWhatsApp ? formData.whatsapp.trim() !== '' : true;
         return formData.fullName && formData.email && formData.phone && 
                formData.password && formData.password === formData.confirmPassword &&
-               formData.password.length >= 6;
+               formData.password.length >= 6 && whatsappValid;
       case 2:
         return formData.category && formData.profession && formData.experience && 
                formData.dailyRate && formData.skills.length > 0;
@@ -413,6 +445,12 @@ const PartnerRegister = () => {
       formDataToSend.append('fullName', formData.fullName);
       formDataToSend.append('email', formData.email);
       formDataToSend.append('phone', formData.phone);
+      // Only send WhatsApp if user chose to provide it
+      if (showWhatsApp && formData.whatsapp) {
+        formDataToSend.append('whatsapp', formData.whatsapp);
+      } else {
+        formDataToSend.append('whatsapp', formData.phone); // Fallback to phone
+      }
       formDataToSend.append('password', formData.password);
       if (formData.photo) {
         formDataToSend.append('photo', formData.photo);
@@ -540,7 +578,6 @@ const PartnerRegister = () => {
       </div>
       
       {/* Email and Phone */}
-      {/* Email and Phone */}
       <div className="grid md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -587,6 +624,90 @@ const PartnerRegister = () => {
             />
           </div>
         </div>
+      </div>
+      
+      {/* WhatsApp Toggle Section */}
+      <div className="bg-gray-50 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="#25D366">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            <span className="font-semibold text-gray-900">WhatsApp Number</span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowWhatsApp(true);
+                if (!formData.whatsapp && formData.phone) {
+                  setFormData(prev => ({ ...prev, whatsapp: formData.phone }));
+                }
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                showWhatsApp 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowWhatsApp(false);
+                setFormData(prev => ({ ...prev, whatsapp: '' }));
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                !showWhatsApp 
+                  ? 'bg-red-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              No
+            </button>
+          </div>
+        </div>
+        
+        {/* Conditional WhatsApp Input Field */}
+        {showWhatsApp && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              WhatsApp Number <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5" viewBox="0 0 24 24" fill="#25D366">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+              <input
+                type="tel"
+                name="whatsapp"
+                value={formData.whatsapp}
+                onChange={handleInputChange}
+                placeholder="07X XXX XXXX"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1.5">
+              Customers will be able to contact you directly via WhatsApp
+            </p>
+            {formData.phone && !formData.whatsapp && (
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, whatsapp: prev.phone }))}
+                className="text-xs text-blue-600 mt-2 hover:underline"
+              >
+                Use phone number: {formData.phone}
+              </button>
+            )}
+          </div>
+        )}
+        
+        {!showWhatsApp && (
+          <p className="text-xs text-gray-500 mt-2">
+            You can add your WhatsApp number later from your profile settings
+          </p>
+        )}
       </div>
       
       {/* Password and Confirm Password */}
@@ -690,24 +811,47 @@ const PartnerRegister = () => {
           Service Category <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setFormData(prev => ({ ...prev, category: cat.id }))}
-              className={`p-3 border rounded-xl flex flex-col items-center gap-2 transition ${
-                formData.category === cat.id
-                  ? 'border-orange-500 bg-orange-50 text-orange-600'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              }`}
-            >
-              <div className={formData.category === cat.id ? 'text-orange-600' : 'text-gray-500'}>
-                {cat.icon}
-              </div>
-              <span className="text-sm font-medium">{cat.name}</span>
-              <span className="text-xs text-gray-400">{cat.count} active</span>
-            </button>
-          ))}
+          {categories.map((cat) => {
+            const isSelected = formData.category === cat.id;
+            const active = cat.activeCount;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, category: cat.id }))}
+                className={`relative p-3 border rounded-xl flex flex-col items-center gap-2 transition ${
+                  isSelected
+                    ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm'
+                    : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50/40 text-gray-700'
+                }`}
+              >
+                {/* Active badge — top-right corner */}
+                {!countsLoading && active !== null && active > 0 && (
+                  <span className={`absolute -top-2 -right-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow ${
+                    isSelected ? 'bg-orange-500' : 'bg-green-500'
+                  }`}>
+                    {active} active
+                  </span>
+                )}
+
+                <div className={isSelected ? 'text-orange-600' : 'text-gray-500'}>
+                  {cat.icon}
+                </div>
+                <span className="text-sm font-medium">{cat.name}</span>
+
+                {/* Count line */}
+                {countsLoading ? (
+                  <span className="text-xs text-gray-300 animate-pulse">loading...</span>
+                ) : active === null || active === 0 ? (
+                  <span className="text-xs text-gray-400">No active providers</span>
+                ) : (
+                  <span className={`text-xs font-medium ${isSelected ? 'text-orange-500' : 'text-green-600'}`}>
+                    {active} verified active
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
       

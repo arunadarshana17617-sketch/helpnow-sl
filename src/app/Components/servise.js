@@ -39,11 +39,104 @@ import {
   Briefcase,
   Loader2,
   AlertCircle,
-  FileText
+  FileText,
+  Leaf
 } from 'lucide-react';
+
+// Profile Link Component - Fetches role from API
+function ProfileLink() {
+  const [role, setRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/user-role')
+      .then(r => r.json())
+      .then(d => {
+        setRole(d.role);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setRole('customer');
+        setIsLoading(false);
+      });
+  }, []);
+
+  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  const subtitle = role === 'partner' ? 'Partner profile' : 'View and edit profile';
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="flex-1">
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1"></div>
+          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={href}
+      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
+    >
+      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div>
+        <p className="font-semibold">My Profile</p>
+        <p className="text-xs text-gray-400">{subtitle || 'View and edit profile'}</p>
+      </div>
+    </Link>
+  );
+}
+
+// Mobile Profile Link Component - For mobile menu
+function MobileProfileLink({ onNavigate }) {
+  const [role, setRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/user-role')
+      .then(r => r.json())
+      .then(d => {
+        setRole(d.role);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setRole('customer');
+        setIsLoading(false);
+      });
+  }, []);
+
+  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  const label = role === 'partner' ? 'Partner Dashboard' : 'My Profile';
+
+  if (isLoading) {
+    return (
+      <div className="w-full py-3 px-4">
+        <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
+    >
+      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      {label}
+    </Link>
+  );
+}
 
 const ServicesUI = () => {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -55,9 +148,9 @@ const ServicesUI = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [emergencyOnly, setEmergencyOnly] = useState(false);
-  const [bookingModal, setBookingModal] = useState(null); // { provider, service }
+  const [bookingModal, setBookingModal] = useState(null);
+  const [contactModal, setContactModal] = useState(null);
   const [showPending, setShowPending] = useState(true);
-  const { data: session, status } = useSession();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -69,7 +162,7 @@ const ServicesUI = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
+      setScrolled(window.scrollY > 20);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -108,10 +201,10 @@ const ServicesUI = () => {
     }
   };
 
-  // Services array eke data ganna helper
+  const closeMobileMenu = () => setIsMenuOpen(false);
+
   const getService = (craftsman) => craftsman.services?.[0] || {};
 
-  // Service categories - services array eken count karanawa
   const categories = [
     { id: 'all', name: 'All Services', icon: <Wrench size={20} />, count: craftsmen.length },
     { id: 'electrician', name: 'Electricians', icon: <Zap size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'electrician')).length },
@@ -120,26 +213,17 @@ const ServicesUI = () => {
     { id: 'carpenter', name: 'Carpenters', icon: <Tool size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'carpenter')).length },
     { id: 'painter', name: 'Painters', icon: <Paintbrush size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'painter')).length },
     { id: 'ac', name: 'AC Technicians', icon: <Wind size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'ac')).length },
+    { id: 'gardener', name: 'Gardeners', icon: <Leaf size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'gardener')).length },
   ];
 
-  // Filter - verified + isActive ones vitharai pennawa (if showPending is false)
   const filteredCraftsmen = craftsmen.filter(c => {
     const service = getService(c);
-
-    // Filter by verification status
     if (!showPending && service.verificationStatus !== 'verified') return false;
-    if (!showPending && !service.isActive) return false;
-    
-    // If showing pending, still show active ones
-    if (showPending && service.verificationStatus === 'pending' && !service.isActive) return false;
-
-    // Category filter
+    if (service.verificationStatus !== 'verified' || !service.isActive) return false;
     if (selectedCategory !== 'all') {
       const hasCategory = c.services?.some(s => s.category === selectedCategory);
       if (!hasCategory) return false;
     }
-
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
@@ -151,14 +235,10 @@ const ServicesUI = () => {
         );
       if (!matchesSearch) return false;
     }
-
-    // Emergency filter
     if (emergencyOnly && !c.emergencyAvailable) return false;
-
     return true;
   });
 
-  // Sort - services array eken karanawa
   const sortedCraftsmen = [...filteredCraftsmen].sort((a, b) => {
     const aService = getService(a);
     const bService = getService(b);
@@ -179,7 +259,6 @@ const ServicesUI = () => {
     return 0;
   });
 
-  // Stats
   const totalCraftsmen = craftsmen.length;
   const verifiedCount = craftsmen.filter(c => c.services?.some(s => s.verificationStatus === 'verified')).length;
   const pendingCount = craftsmen.filter(c => c.services?.some(s => s.verificationStatus === 'pending')).length;
@@ -206,6 +285,7 @@ const ServicesUI = () => {
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
+            {/* Logo */}
             <Link href="/" className="flex items-center gap-2 flex-shrink-0">
               <div className={`p-2 rounded-lg text-white transform hover:rotate-12 transition-transform ${
                 scrolled ? 'bg-blue-600' : 'bg-blue-600/90'
@@ -219,6 +299,7 @@ const ServicesUI = () => {
               </span>
             </Link>
 
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6 lg:gap-8">
               {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
                 <Link
@@ -235,6 +316,7 @@ const ServicesUI = () => {
                 </Link>
               ))}
 
+              {/* Join as Pro Button */}
               <button
                 onClick={() => router.push('/partner')}
                 className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${
@@ -247,6 +329,7 @@ const ServicesUI = () => {
                 Join as Pro
               </button>
 
+              {/* Auth Button - Desktop */}
               {status === "loading" ? (
                 <div className="w-24 h-10 bg-gray-200 rounded-full animate-pulse"></div>
               ) : session ? (
@@ -263,7 +346,8 @@ const ServicesUI = () => {
                       {session.user?.name?.split(' ')[0]}
                     </span>
                   </button>
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  {/* Dropdown */}
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                     <div className="px-4 py-3 border-b border-gray-100">
                       <div className="flex items-center gap-3">
                         {session.user?.image ? (
@@ -275,21 +359,27 @@ const ServicesUI = () => {
                         )}
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{session.user?.name}</p>
-                          <p className="text-xs text-gray-500 truncate max-w-[140px]">{session.user?.email}</p>
+                          <p className="text-xs text-gray-500 truncate max-w-[150px]">{session.user?.email}</p>
                         </div>
                       </div>
                     </div>
-                    <Link href="/partner/profile"
+
+                    {/* My Profile - role aware with API fetch */}
+                    <ProfileLink />
+
+                    {/* My Bookings */}
+                    <Link href="/bookings"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
                     >
-                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                       </div>
                       <div>
-                        <p className="font-semibold">My Profile</p>
-                        <p className="text-xs text-gray-400">View and edit profile</p>
+                        <p className="font-semibold">My Bookings</p>
+                        <p className="text-xs text-gray-400">View all bookings</p>
                       </div>
                     </Link>
+
                     <div className="border-t border-gray-100 my-1"></div>
                     <button onClick={() => signOut()}
                       className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
@@ -316,6 +406,7 @@ const ServicesUI = () => {
               )}
             </div>
 
+            {/* Mobile Menu Button */}
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -330,6 +421,7 @@ const ServicesUI = () => {
           </div>
         </div>
 
+        {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-xl">
             <div className="px-4 py-6 space-y-4">
@@ -338,15 +430,16 @@ const ServicesUI = () => {
                   key={item}
                   href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
                   className="block py-3 px-4 text-lg font-semibold hover:bg-blue-50 rounded-xl transition"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={closeMobileMenu}
                 >
                   {item}
                 </Link>
               ))}
 
+              {/* Mobile Join as Pro Button */}
               <button
                 onClick={() => {
-                  setIsMenuOpen(false);
+                  closeMobileMenu();
                   router.push('/partner');
                 }}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
@@ -355,10 +448,12 @@ const ServicesUI = () => {
                 Join as Professional
               </button>
 
+              {/* Mobile Auth Section */}
               {status === "loading" ? (
                 <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
               ) : session ? (
                 <div className="border-t border-gray-100 pt-4 space-y-2">
+                  {/* User Info */}
                   <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
                     {session.user?.image ? (
                       <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
@@ -372,15 +467,28 @@ const ServicesUI = () => {
                       <p className="text-xs text-gray-500 truncate max-w-[200px]">{session.user?.email}</p>
                     </div>
                   </div>
-                  <Link href="/partner/profile" onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
+
+                  {/* My Profile - role aware with API fetch */}
+                  <MobileProfileLink onNavigate={closeMobileMenu} />
+
+                  {/* My Bookings */}
+                  <Link
+                    href="/bookings"
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-3 w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl transition"
                   >
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                     </div>
-                    My Profile
+                    My Bookings
                   </Link>
-                  <button onClick={() => { signOut(); setIsMenuOpen(false); }}
+
+                  {/* Sign Out */}
+                  <button
+                    onClick={() => {
+                      signOut();
+                      closeMobileMenu();
+                    }}
                     className="flex items-center gap-3 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition"
                   >
                     <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
@@ -390,7 +498,11 @@ const ServicesUI = () => {
                   </button>
                 </div>
               ) : (
-                <button onClick={() => { signIn('google'); setIsMenuOpen(false); }}
+                <button
+                  onClick={() => {
+                    signIn('google');
+                    closeMobileMenu();
+                  }}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
                 >
                   Login / Sign Up
@@ -701,7 +813,6 @@ const ServicesUI = () => {
                                     </div>
                                   )}
                                 </div>
-                                {/* Profession - services array eken */}
                                 <p className="text-orange-600 font-medium mt-1">{service.profession || 'N/A'}</p>
 
                                 <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
@@ -721,7 +832,7 @@ const ServicesUI = () => {
                                 </div>
                               </div>
 
-                              {/* Price - services array eken */}
+                              {/* Price */}
                               <div className="text-right">
                                 <div className="text-2xl font-bold text-blue-950">{formatCurrency(service.dailyRate)}</div>
                                 <div className="text-sm text-gray-500">per day</div>
@@ -736,7 +847,7 @@ const ServicesUI = () => {
                               </div>
                             </div>
 
-                            {/* Skills - services array eken */}
+                            {/* Skills */}
                             {service.skills && service.skills.length > 0 && (
                               <div className="flex flex-wrap gap-2 mt-4">
                                 {service.skills.slice(0, 5).map((skill, idx) => (
@@ -771,7 +882,9 @@ const ServicesUI = () => {
                             <Calendar size={18} />
                             Book Now
                           </button>
-                          <button className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => setContactModal(craftsman)}
+                            className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
                             <MessageCircle size={18} />
                             Contact
                           </button>
@@ -804,7 +917,6 @@ const ServicesUI = () => {
                                 </div>
                               </div>
 
-                              {/* Certificates */}
                               {service.certificates && service.certificates.length > 0 && (
                                 <div className="mt-4">
                                   <h4 className="font-semibold text-blue-950 mb-2">Certificates</h4>
@@ -847,7 +959,6 @@ const ServicesUI = () => {
                                 )}
                               </div>
 
-                              {/* Skills */}
                               {service.skills && service.skills.length > 0 && (
                                 <div className="mt-4">
                                   <h4 className="font-semibold text-blue-950 mb-2">All Skills</h4>
@@ -956,12 +1067,147 @@ const ServicesUI = () => {
         </div>
       </section>
 
+      {/* Contact Modal */}
+      {contactModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setContactModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-blue-950">Contact Details</h3>
+              <button
+                onClick={() => setContactModal(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition"
+              >
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 mb-5 pb-5 border-b border-gray-100">
+              {contactModal.photo ? (
+                <img src={contactModal.photo} alt={contactModal.fullName} className="w-16 h-16 rounded-2xl object-cover" />
+              ) : (
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold">
+                  {getInitials(contactModal.fullName)}
+                </div>
+              )}
+              <div>
+                <p className="font-bold text-blue-950 text-base">{contactModal.fullName}</p>
+                <p className="text-orange-600 text-sm font-medium">{getService(contactModal).profession}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <MapPin size={12} className="text-gray-400" />
+                  <span className="text-xs text-gray-500">{contactModal.city}, {contactModal.district}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {contactModal.phone ? (
+                <a
+                  href={`tel:${contactModal.phone}`}
+                  className="flex items-center gap-4 p-4 bg-green-50 hover:bg-green-100 rounded-xl transition group"
+                >
+                  <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Phone size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Phone</p>
+                    <p className="font-bold text-gray-800 group-hover:text-green-700">{contactModal.phone}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-400 ml-auto" />
+                </a>
+              ) : (
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                  <div className="w-10 h-10 bg-gray-200 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Phone size={18} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Phone</p>
+                    <p className="text-sm text-gray-400">Not provided</p>
+                  </div>
+                </div>
+              )}
+
+              {contactModal.email ? (
+                <a
+                  href={`mailto:${contactModal.email}`}
+                  className="flex items-center gap-4 p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition group"
+                >
+                  <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Mail size={18} className="text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 font-medium">Email</p>
+                    <p className="font-bold text-gray-800 group-hover:text-blue-700 truncate">{contactModal.email}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-400 ml-auto flex-shrink-0" />
+                </a>
+              ) : (
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                  <div className="w-10 h-10 bg-gray-200 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Mail size={18} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Email</p>
+                    <p className="text-sm text-gray-400">Not provided</p>
+                  </div>
+                </div>
+              )}
+
+              {/* WhatsApp Button */}
+              {(contactModal.whatsapp || contactModal.phone) && (
+                <a
+                  href={`https://wa.me/94${((contactModal.whatsapp || contactModal.phone) || '').replace(/^0+/, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-4 p-4 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition group"
+                >
+                  <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">WhatsApp</p>
+                    <p className="font-bold text-gray-800 group-hover:text-emerald-700">
+                      Message on WhatsApp
+                      {contactModal.whatsapp && (
+                        <span className="text-xs font-normal text-gray-500 ml-1">
+                          ({contactModal.whatsapp})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-400 ml-auto" />
+                </a>
+              )}
+            </div>
+
+            <button
+              onClick={() => setContactModal(null)}
+              className="w-full mt-5 py-3 border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold rounded-xl transition text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Booking Modal */}
       {bookingModal && (
         <BookingModal
           provider={bookingModal.provider}
           service={bookingModal.service}
           onClose={() => setBookingModal(null)}
+          onSuccess={() => {
+            setBookingModal(null);
+            fetchCraftsmen();
+          }}
         />
       )}
     </div>

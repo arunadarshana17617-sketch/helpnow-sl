@@ -58,6 +58,7 @@ export async function PUT(request) {
     // Normal profile update
     const fullName = formData.get('fullName');
     const phone = formData.get('phone');
+    const whatsapp = formData.get('whatsapp') || '';
     const city = formData.get('city');
     const district = formData.get('district');
     const maxDistance = formData.get('maxDistance');
@@ -70,7 +71,16 @@ export async function PUT(request) {
     const skills = JSON.parse(formData.get('skills') || '[]');
     const description = formData.get('description') || '';
 
-    const updateData = { fullName, phone, city, district, maxDistance: parseFloat(maxDistance), emergencyAvailable, serviceAreas };
+    const updateData = {
+      fullName,
+      phone,
+      whatsapp,       // ✅ whatsapp save karanawa
+      city,
+      district,
+      maxDistance: parseFloat(maxDistance),
+      emergencyAvailable,
+      serviceAreas,
+    };
 
     const photo = formData.get('photo');
     if (photo && photo.size > 0) {
@@ -81,18 +91,39 @@ export async function PUT(request) {
     if (serviceId) {
       provider = await ServiceProvider.findOneAndUpdate(
         { email: session.user.email, 'services._id': serviceId },
-        { $set: { ...updateData, 'services.$.profession': profession, 'services.$.experience': experience, 'services.$.dailyRate': parseFloat(dailyRate), 'services.$.skills': skills, 'services.$.description': description } },
+        {
+          $set: {
+            ...updateData,
+            'services.$.profession': profession,
+            'services.$.experience': experience,
+            'services.$.dailyRate': parseFloat(dailyRate),
+            'services.$.skills': skills,
+            'services.$.description': description,
+          }
+        },
         { new: true }
       ).select('-password');
     } else {
       provider = await ServiceProvider.findOneAndUpdate(
         { email: session.user.email },
-        { $set: { ...updateData, 'services.0.profession': profession, 'services.0.experience': experience, 'services.0.dailyRate': parseFloat(dailyRate), 'services.0.skills': skills, 'services.0.description': description } },
+        {
+          $set: {
+            ...updateData,
+            'services.0.profession': profession,
+            'services.0.experience': experience,
+            'services.0.dailyRate': parseFloat(dailyRate),
+            'services.0.skills': skills,
+            'services.0.description': description,
+          }
+        },
         { new: true }
       ).select('-password');
     }
 
-    if (!provider) return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+    if (!provider) {
+      return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true, provider });
 
   } catch (error) {
