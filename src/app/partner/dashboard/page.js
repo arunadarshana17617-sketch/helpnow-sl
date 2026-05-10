@@ -102,7 +102,7 @@ export default function PartnerDashboard() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-blue-950">My Bookings</h1>
-            <p className="text-sm text-gray-500">{session?.user?.name} · Partner Dashboard</p>
+            <p className="text-sm text-gray-500">{session?.user?.name} ï¿½ Partner Dashboard</p>
           </div>
           <button
             onClick={fetchBookings}
@@ -199,7 +199,7 @@ export default function PartnerDashboard() {
                         {cfg.label}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5 truncate">{booking.serviceProfession} · {booking.serviceCategory}</p>
+                    <p className="text-sm text-gray-500 mt-0.5 truncate">{booking.serviceProfession} ï¿½ {booking.serviceCategory}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                       <span className="flex items-center gap-1">
                         <CalendarDays size={12} />
