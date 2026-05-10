@@ -27,22 +27,22 @@ export async function GET() {
     const cancelled  = allBookings.filter(b => b.status === 'cancelled');
     const waiting    = [...pending, ...confirmed];
 
-    // Total earnings — completed jobs ekin
+    // Total earnings - completed jobs ekin
     const totalEarnings = completed.reduce((sum, b) => {
       return sum + ((b.dailyRate || 0) * (b.estimatedDays || 1));
     }, 0);
 
-    // Active earnings — in_progress jobs (expected)
+    // Active earnings - in_progress jobs (expected)
     const activeEarnings = active.reduce((sum, b) => {
       return sum + ((b.dailyRate || 0) * (b.estimatedDays || 1));
     }, 0);
 
-    // Pending earnings — waiting jobs (expected)
+    // Pending earnings - waiting jobs (expected)
     const pendingEarnings = waiting.reduce((sum, b) => {
       return sum + ((b.dailyRate || 0) * (b.estimatedDays || 1));
     }, 0);
 
-    // Monthly breakdown — last 6 months
+    // Monthly breakdown - last 6 months
     const monthlyData = {};
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -59,7 +59,7 @@ export async function GET() {
       }
     });
 
-    // Recent completed bookings — last 5
+    // Recent completed bookings - last 5
     const recentCompleted = completed.slice(0, 5).map(b => ({
       _id: b._id,
       customerName: b.customerName,
