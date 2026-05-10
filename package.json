@@ -15,8 +15,6 @@
     "lucide-react": "^0.577.0",
     "mongodb": "^7.1.0",
     "mongoose": "^9.3.0",
-    "multer": "^2.1.1",
-    "multer-storage-cloudinary": "^4.0.0",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.30",
     "react": "19.2.3",
