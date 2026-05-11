@@ -1,158 +1,106 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/app/lib/mongodb';
 import ServiceProvider from '@/app/models/ServiceProvider';
-import { uploadToCloudinary, uploadMultipleToCloudinary } from '@/app/lib/cloudinary';
 
-export async function POST(request) {
+export async function GET(request) {
   try {
-    console.log('Starting registration process...');
-    
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+    const search = searchParams.get('search');
+    const emergency = searchParams.get('emergency');
+    const limit = parseInt(searchParams.get('limit') || '100');
+    const page = parseInt(searchParams.get('page') || '1');
+    const skip = (page - 1) * limit;
+
+    const lat = parseFloat(searchParams.get('lat'));
+    const lng = parseFloat(searchParams.get('lng'));
+    const radius = parseInt(searchParams.get('radius') || '15000'); // default 15km
+
+    const hasLocation = !isNaN(lat) && !isNaN(lng);
+
     await connectDB();
-    console.log('MongoDB connected');
 
-    const formData = await request.formData();
+    // Base filters - always apply these
+    const baseQuery = {};
 
-    // Personal Info
-    const fullName = formData.get('fullName');
-    const email = formData.get('email');
-    const phone = formData.get('phone');
-    const password = formData.get('password');
-    const photo = formData.get('photo');
-    const whatsapp = formData.get('whatsapp') || phone; // Use WhatsApp if provided, otherwise fallback to phone
-    
-    if (!fullName || !email || !phone || !password) {
-      return NextResponse.json(
-        { error: 'Missing required personal information' },
-        { status: 400 }
-      );
+    if (category && category !== 'all') {
+      baseQuery['services.category'] = category;
     }
-    
-    // Check existing user
-    const existingUser = await ServiceProvider.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 400 }
-      );
+    if (emergency === 'true') {
+      baseQuery.emergencyAvailable = true;
     }
-    
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Upload images
-    let photoUrl = null;
-    let nicFrontUrl = null;
-    let nicBackUrl = null;
-    let policeReportUrl = null;
-    let certificateUrls = [];
-    
-    if (photo && photo.size > 0) {
-      photoUrl = await uploadToCloudinary(photo, 'profiles');
+    if (search) {
+      baseQuery.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { 'services.profession': { $regex: search, $options: 'i' } },
+        { 'services.skills': { $in: [new RegExp(search, 'i')] } },
+        { 'services.description': { $regex: search, $options: 'i' } },
+      ];
     }
-    
-    const nicFront = formData.get('nicFront');
-    const nicBack = formData.get('nicBack');
-    
-    if (nicFront && nicFront.size > 0) {
-      nicFrontUrl = await uploadToCloudinary(nicFront, 'nic');
-    }
-    
-    if (nicBack && nicBack.size > 0) {
-      nicBackUrl = await uploadToCloudinary(nicBack, 'nic');
-    }
-    
-    const policeReport = formData.get('policeReport');
-    if (policeReport && policeReport.size > 0) {
-      policeReportUrl = await uploadToCloudinary(policeReport, 'police-reports');
-    }
-    
-    const certificates = formData.getAll('certificates');
-    if (certificates && certificates.length > 0) {
-      certificateUrls = await uploadMultipleToCloudinary(certificates, 'certificates');
-    }
-    
-    // Service Info
-    const category = formData.get('category');
-    const profession = formData.get('profession');
-    const experience = formData.get('experience');
-    const dailyRate = formData.get('dailyRate');
-    const skills = JSON.parse(formData.get('skills') || '[]');
-    const description = formData.get('description') || '';
 
-    // Location Info
-    const serviceAreas = JSON.parse(formData.get('serviceAreas') || '[]');
-    const city = formData.get('city');
-    const district = formData.get('district');
-    const maxDistance = formData.get('maxDistance') || '30';
-    const emergencyAvailable = formData.get('emergencyAvailable') === 'true';
-    const insurance = formData.get('insurance') === 'true';
-    
-    // Create provider with services array
-    const providerData = {
-      fullName,
-      email,
-      phone,
-      whatsapp: whatsapp, // Added WhatsApp field
-      password: hashedPassword,
-      photo: photoUrl,
-      nicFront: nicFrontUrl,
-      nicBack: nicBackUrl,
-      policeReport: policeReportUrl,
-      insurance,
-      serviceAreas,
-      city,
-      district,
-      maxDistance: parseFloat(maxDistance),
-      emergencyAvailable,
-      services: [
-        {
-          category,
-          profession,
-          experience,
-          dailyRate: parseFloat(dailyRate),
-          skills,
-          description,
-          certificates: certificateUrls,
-          verificationStatus: 'pending',
-          isActive: false,
-        }
-      ],
-    };
-    
-    const newProvider = new ServiceProvider(providerData);
-    await newProvider.save();
-    
-    console.log('Service provider saved with ID:', newProvider._id);
-    
-    return NextResponse.json(
-      { 
-        message: 'Registration successful! Your application is under review.',
-        providerId: newProvider._id 
+    let craftsmen = [];
+    let total = 0;
+
+    if (hasLocation) {
+      // ── Location ON ───────────────────────────────────────────
+      // Step 1: Get nearby providers (within radius), sorted by distance
+      const nearbyQuery = {
+        ...baseQuery,
+        location: {
+          $near: {
+            $geometry: { type: 'Point', coordinates: [lng, lat] },
+            $maxDistance: radius,
+          },
+        },
+      };
+
+      const nearby = await ServiceProvider.find(nearbyQuery)
+        .select('-password')
+        .lean();
+
+      // Step 2: Get everyone else (outside radius or no location saved)
+      const othersQuery = {
+        ...baseQuery,
+        _id: { $nin: nearby.map(p => p._id) },
+      };
+
+      const others = await ServiceProvider.find(othersQuery)
+        .sort({ createdAt: -1 })
+        .select('-password')
+        .lean();
+
+      // Step 3: Nearby on top, rest below
+      craftsmen = [...nearby, ...others];
+      total = craftsmen.length;
+
+    } else {
+      // ── Location OFF: show all, newest first ──────────────────
+      total = await ServiceProvider.countDocuments(baseQuery);
+
+      craftsmen = await ServiceProvider.find(baseQuery)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('-password')
+        .lean();
+    }
+
+    return NextResponse.json({
+      success: true,
+      craftsmen,
+      locationUsed: hasLocation,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
       },
-      { status: 201 }
-    );
-    
+    });
+
   } catch (error) {
-    console.error('Registration error:', error);
-    
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(e => e.message);
-      return NextResponse.json(
-        { error: `Validation error: ${errors.join(', ')}` },
-        { status: 400 }
-      );
-    }
-    
-    if (error.code === 11000) {
-      return NextResponse.json(
-        { error: 'This email is already registered.' },
-        { status: 400 }
-      );
-    }
-    
+    console.error('Error:', error);
     return NextResponse.json(
-      { error: `Registration failed: ${error.message}` },
+      { success: false, error: error.message },
       { status: 500 }
     );
   }

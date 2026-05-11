@@ -7,8 +7,118 @@ import { useRouter } from 'next/navigation';
 import {
   CheckCircle2, XCircle, Clock, Loader2, CalendarDays,
   MapPin, Phone, Briefcase, ChevronDown, ChevronUp, User,
-  AlertCircle, PlayCircle, BadgeCheck
+  AlertCircle, PlayCircle, BadgeCheck, Navigation, NavigationOff
 } from 'lucide-react';
+
+// ── Location Toggle Component ────────────────────────────────────
+function LocationToggle() {
+  const [enabled, setEnabled] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Fetch current status on mount
+  useEffect(() => {
+    fetch('/api/partner/location')
+      .then(r => r.json())
+      .then(({ data }) => {
+        if (data) {
+          setEnabled(data.locationEnabled);
+          setLastUpdated(data.locationUpdatedAt);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    setError(null);
+    try {
+      const body = { enabled: !enabled };
+
+      // Turning ON → grab fresh GPS coords
+      if (!enabled) {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
+        );
+        body.lat = pos.coords.latitude;
+        body.lng = pos.coords.longitude;
+      }
+
+      const res = await fetch('/api/partner/location', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed');
+      setEnabled(json.data.locationEnabled);
+      setLastUpdated(json.data.locationUpdatedAt);
+    } catch (err) {
+      setError(err.code === 1 ? 'Location permission denied. Please allow location access.' : err.message);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+      <div className="flex items-center gap-4">
+        {/* Icon */}
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          enabled ? 'bg-green-100' : 'bg-gray-100'
+        }`}>
+          {enabled
+            ? <Navigation size={22} className="text-green-600" />
+            : <NavigationOff size={22} className="text-gray-400" />
+          }
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-blue-950">Live Location</p>
+          <p className="text-sm text-gray-500">
+            {enabled
+              ? 'Customers can find you nearby 🟢'
+              : 'Your location is hidden from customers'}
+          </p>
+          {lastUpdated && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Updated {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          )}
+        </div>
+
+        {/* Toggle switch */}
+        <button
+          onClick={handleToggle}
+          disabled={toggling}
+          aria-label={enabled ? 'Disable location' : 'Enable location'}
+          className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
+            enabled ? 'bg-green-500' : 'bg-gray-300'
+          } ${toggling ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+              enabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+          {toggling && (
+            <Loader2 size={12} className="absolute right-1 text-white animate-spin" />
+          )}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">
+          <AlertCircle size={14} />
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+// ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
   pending:     { label: 'Pending',     color: 'bg-yellow-100 text-yellow-700 border-yellow-200',  dot: 'bg-yellow-400' },
@@ -126,6 +236,10 @@ export default function PartnerDashboard() {
             </div>
           ))}
         </div>
+
+        {/* ── Live Location Toggle ── */}
+        <LocationToggle />
+        {/* ──────────────────────── */}
 
         {/* Filter tabs */}
         <div className="flex gap-2 overflow-x-auto pb-1">

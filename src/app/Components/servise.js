@@ -43,6 +43,20 @@ import {
   Leaf
 } from 'lucide-react';
 
+// Haversine distance (km) between two GPS points
+function getDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+const NEARBY_KM = 15;
+
 // Profile Link Component - Fetches role from API
 function ProfileLink() {
   const [role, setRole] = useState(null);
@@ -152,6 +166,12 @@ const ServicesUI = () => {
   const [contactModal, setContactModal] = useState(null);
   const [showPending, setShowPending] = useState(true);
 
+  // GPS location state
+  const [userCoords, setUserCoords] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('idle'); // idle | loading | granted | denied
+  const [nearbyOnly, setNearbyOnly] = useState(false); // Near Me toggle
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const cat = params.get('category');
@@ -182,11 +202,65 @@ const ServicesUI = () => {
     fetchCraftsmen();
   }, []);
 
-  const fetchCraftsmen = async () => {
+  // Get user GPS on mount (silently — don't force nearby mode automatically)
+  useEffect(() => {
+    setLocationStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationStatus('granted');
+      },
+      () => setLocationStatus('denied')
+    );
+  }, []);
+
+  // Near Me toggle handler
+  const handleNearbyToggle = async () => {
+    if (nearbyOnly) {
+      // Turn OFF — show all providers
+      setNearbyOnly(false);
+      fetchCraftsmen();
+      return;
+    }
+
+    // Turn ON — need location
+    if (locationStatus === 'denied') return; // already denied, can't do anything
+
+    setNearbyLoading(true);
+
+    try {
+      let coords = userCoords;
+
+      // If we don't have coords yet, get them now
+      if (!coords) {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
+        );
+        coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserCoords(coords);
+        setLocationStatus('granted');
+      }
+
+      setNearbyOnly(true);
+      await fetchCraftsmen(coords, true);
+    } catch {
+      setLocationStatus('denied');
+    } finally {
+      setNearbyLoading(false);
+    }
+  };
+
+  const fetchCraftsmen = async (coords = null, nearby = false) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/craftsmen');
+      const params = new URLSearchParams();
+      if (coords && nearby) {
+        params.set('lat', coords.lat);
+        params.set('lng', coords.lng);
+        params.set('nearbyOnly', 'true');
+      }
+      const response = await fetch(`/api/craftsmen?${params}`);
       const data = await response.json();
       if (response.ok && data.success) {
         setCraftsmen(data.craftsmen || []);
@@ -705,15 +779,41 @@ const ServicesUI = () => {
 
           {/* Craftsmen List */}
           <div className="flex-1">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <p className="text-gray-600">
                 <span className="font-bold text-blue-950">{sortedCraftsmen.length}</span> professionals found
                 {!showPending && <span className="text-sm text-gray-400 ml-2">(showing verified only)</span>}
                 {showPending && <span className="text-sm text-gray-400 ml-2">(showing all)</span>}
               </p>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <MapPin size={16} />
-                <span>Across Sri Lanka</span>
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* ── Near Me Toggle ── */}
+                <button
+                  onClick={handleNearbyToggle}
+                  disabled={nearbyLoading || locationStatus === 'denied'}
+                  title={locationStatus === 'denied' ? 'Location access denied' : ''}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full border font-semibold text-sm transition-all ${
+                    nearbyOnly
+                      ? 'bg-green-500 text-white border-green-500 shadow-md'
+                      : locationStatus === 'denied'
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-600'
+                  }`}
+                >
+                  {nearbyLoading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <MapPin size={14} className={nearbyOnly ? 'text-white' : ''} />
+                  )}
+                  {nearbyOnly ? 'Near Me ✓' : 'Near Me'}
+                  {nearbyOnly && (
+                    <span className="ml-1 text-white/80 text-xs font-normal">✕</span>
+                  )}
+                </button>
+                {/* ─────────────────── */}
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <MapPin size={16} />
+                  <span>{nearbyOnly ? `Within ${NEARBY_KM}km` : 'Across Sri Lanka'}</span>
+                </div>
               </div>
             </div>
 
@@ -735,6 +835,26 @@ const ServicesUI = () => {
                 >
                   Try Again
                 </button>
+              </div>
+            )}
+
+            {/* Location status pill */}
+            {!loading && nearbyOnly && locationStatus === 'granted' && (
+              <div className="flex items-center gap-2 mb-4 text-sm text-green-700 bg-green-50 border border-green-200 px-3 py-2 rounded-xl w-fit">
+                <MapPin size={14} className="text-green-600" />
+                Showing providers with live location within {NEARBY_KM}km
+              </div>
+            )}
+            {!loading && !nearbyOnly && locationStatus === 'granted' && (
+              <div className="flex items-center gap-2 mb-4 text-sm text-blue-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-xl w-fit">
+                <MapPin size={14} />
+                Location ready — tap "Near Me" to filter nearby providers
+              </div>
+            )}
+            {!loading && locationStatus === 'denied' && (
+              <div className="flex items-center gap-2 mb-4 text-sm text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl w-fit">
+                <MapPin size={14} />
+                Location off — showing all providers
               </div>
             )}
 
@@ -760,8 +880,36 @@ const ServicesUI = () => {
 
             {!loading && !error && sortedCraftsmen.length > 0 && (
               <div className="space-y-4">
-                {sortedCraftsmen.map((craftsman) => {
+                {(() => {
+                // When nearbyOnly is ON — API already filtered, all results are nearby
+                // When OFF — split by distance client-side (providers who have location set)
+                const nearby = (!nearbyOnly && locationStatus === 'granted' && userCoords)
+                  ? sortedCraftsmen.filter(c => {
+                      const [lng, lat] = c.location?.coordinates || [];
+                      return c.locationEnabled && lat && lng && getDistanceKm(userCoords.lat, userCoords.lng, lat, lng) <= NEARBY_KM;
+                    })
+                  : nearbyOnly ? sortedCraftsmen : [];
+
+                const others = nearbyOnly
+                  ? [] // all already shown above
+                  : (!nearbyOnly && locationStatus === 'granted' && userCoords)
+                  ? sortedCraftsmen.filter(c => {
+                      const [lng, lat] = c.location?.coordinates || [];
+                      return !c.locationEnabled || !lat || !lng || getDistanceKm(userCoords.lat, userCoords.lng, lat, lng) > NEARBY_KM;
+                    })
+                  : sortedCraftsmen;
+
+                const getDistLabel = (c) => {
+                  if (!userCoords || !c.location?.coordinates?.length) return null;
+                  const [lng, lat] = c.location.coordinates;
+                  if (!lat || !lng) return null;
+                  const km = getDistanceKm(userCoords.lat, userCoords.lng, lat, lng);
+                  return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
+                };
+
+                const renderCard = (craftsman) => {
                   const service = getService(craftsman);
+                  const distLabel = getDistLabel(craftsman);
                   return (
                     <div
                       key={craftsman._id}
@@ -810,6 +958,13 @@ const ServicesUI = () => {
                                   {craftsman.emergencyAvailable && (
                                     <div className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full">
                                       24/7 Emergency
+                                    </div>
+                                  )}
+                                  {/* Distance badge */}
+                                  {distLabel && (
+                                    <div className="flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-semibold">
+                                      <MapPin size={11} />
+                                      {distLabel} away
                                     </div>
                                   )}
                                 </div>
@@ -977,7 +1132,43 @@ const ServicesUI = () => {
                       )}
                     </div>
                   );
-                })}
+                };
+
+                return (
+                  <>
+                    {/* Nearby providers section */}
+                    {nearby.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
+                          <span className="font-semibold text-gray-700 text-sm">
+                            {nearbyOnly ? `ඔයාගෙ ළගම — ${nearby.length} provider${nearby.length !== 1 ? 's' : ''}` : `ඔයාගෙ ළගම — ${nearby.length} provider${nearby.length !== 1 ? 's' : ''}`}
+                          </span>
+                        </div>
+                        <div className="space-y-6 mb-6">
+                          {nearby.map(renderCard)}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Divider when both sections exist */}
+                    {nearby.length > 0 && others.length > 0 && (
+                      <div className="flex items-center gap-4 my-6">
+                        <div className="flex-1 border-t border-gray-200"></div>
+                        <span className="text-sm text-gray-400 whitespace-nowrap">අනිත් providers</span>
+                        <div className="flex-1 border-t border-gray-200"></div>
+                      </div>
+                    )}
+
+                    {/* Others / all providers */}
+                    {others.length > 0 && (
+                      <div className="space-y-6">
+                        {others.map(renderCard)}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               </div>
             )}
           </div>

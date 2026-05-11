@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import ServiceProvider from '@/app/models/ServiceProvider';
 
+const DEFAULT_RADIUS_KM = 15;
+
+// Haversine distance helper
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -12,12 +27,20 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
+    // ── Location params ──────────────────────────────────────────
+    const lat = parseFloat(searchParams.get('lat'));
+    const lng = parseFloat(searchParams.get('lng'));
+    const radius = parseFloat(searchParams.get('radius')) || DEFAULT_RADIUS_KM;
+    const nearbyOnly = searchParams.get('nearbyOnly') === 'true';
+    const hasLocation = !isNaN(lat) && !isNaN(lng);
+    // ─────────────────────────────────────────────────────────────
+
     await connectDB();
 
     // Build query
     let query = {};
 
-    // Category filter - services array eke thiyanawa
+    // Category filter
     if (category && category !== 'all') {
       query['services.category'] = category;
     }
@@ -37,18 +60,43 @@ export async function GET(request) {
       ];
     }
 
+    // ── Geo query — location on karappu providers witarak ──────
+    if (hasLocation && nearbyOnly) {
+      // Strict nearby: $nearSphere ekatin radius eke walakatama
+      query.locationEnabled = true;
+      query.location = {
+        $nearSphere: {
+          $geometry: { type: 'Point', coordinates: [lng, lat] },
+          $maxDistance: radius * 1000, // metres
+        },
+      };
+    }
+    // ─────────────────────────────────────────────────────────────
+
     const total = await ServiceProvider.countDocuments(query);
 
     const craftsmen = await ServiceProvider.find(query)
-      .sort({ createdAt: -1 })
+      .sort(hasLocation && nearbyOnly ? {} : { createdAt: -1 }) // $nearSphere already sorts by distance
       .skip(skip)
       .limit(limit)
       .select('-password')
       .lean();
 
+    // ── Attach distanceKm for client-side rendering ─────────────
+    const enriched = craftsmen.map((c) => {
+      if (hasLocation && c.location?.coordinates?.length === 2) {
+        const [cLng, cLat] = c.location.coordinates;
+        if (cLat !== 0 || cLng !== 0) {
+          c.distanceKm = haversineKm(lat, lng, cLat, cLng);
+        }
+      }
+      return c;
+    });
+    // ─────────────────────────────────────────────────────────────
+
     return NextResponse.json({
       success: true,
-      craftsmen: craftsmen,
+      craftsmen: enriched,
       pagination: {
         total,
         page,

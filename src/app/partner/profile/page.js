@@ -7,7 +7,8 @@ import {
   Wrench, User, MapPin, Briefcase, Camera, Phone, Mail,
   CheckCircle2, Upload, X, Loader2, AlertCircle,
   ShieldCheck, Clock, Save, ArrowLeft, Search,
-  PauseCircle, PlayCircle, Trash2, AlertTriangle
+  PauseCircle, PlayCircle, Trash2, AlertTriangle,
+  Navigation, NavigationOff
 } from 'lucide-react';
 
 const districtCityData = {
@@ -28,6 +29,152 @@ const districtCityData = {
   'Ratnapura': ['Ratnapura','Embilipitiya','Balangoda','Eheliyagoda','Kuruwita'],
   'Kegalle': ['Kegalle','Mawanella','Rambukkana','Warakapola','Aranayaka'],
 };
+
+// ── Location Toggle Component ─────────────────────────────────────
+function LocationToggle({ provider }) {
+  const [enabled, setEnabled]         = useState(provider?.locationEnabled || false);
+  const [toggling, setToggling]       = useState(false);
+  const [error, setError]             = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(provider?.locationUpdatedAt || null);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    setError(null);
+    try {
+      const body = { enabled: !enabled };
+
+      if (!enabled) {
+        // GPS try karanawa, fail wunotha IP fallback use karanawa
+        try {
+          const pos = await new Promise((res, rej) =>
+            navigator.geolocation.getCurrentPosition(res, rej, {
+              timeout: 8000,
+              enableHighAccuracy: false,
+              maximumAge: 60000,
+            })
+          );
+          body.lat = pos.coords.latitude;
+          body.lng = pos.coords.longitude;
+        } catch (gpsErr) {
+          // GPS fail — IP-based location use karanawa
+          try {
+            const ipRes = await fetch('https://ipapi.co/json/');
+            const ipData = await ipRes.json();
+            if (ipData.latitude && ipData.longitude) {
+              body.lat = ipData.latitude;
+              body.lng = ipData.longitude;
+            } else {
+              throw new Error('Location detect karanna bari una. Browser location permission check karanna.');
+            }
+          } catch (ipErr) {
+            throw new Error('Location detect karanna bari una. Browser location permission check karanna.');
+          }
+        }
+      }
+
+      const res = await fetch('/api/partner/location', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Update failed');
+      setEnabled(json.data.locationEnabled);
+      setLastUpdated(json.data.locationUpdatedAt);
+    } catch (err) {
+      setError(
+        err.code === 1
+          ? 'Location permission denied. Browser settings eke location allow karanna.'
+          : err.message
+      );
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-2xl border-2 p-5 mb-6 transition-all ${
+      enabled ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white shadow-lg'
+    }`}>
+      <div className="flex items-center gap-4">
+        {/* Icon */}
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+          enabled ? 'bg-green-500' : 'bg-gray-200'
+        }`}>
+          {enabled
+            ? <Navigation size={22} className="text-white" />
+            : <NavigationOff size={22} className="text-gray-500" />
+          }
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-blue-950 text-base">Live Location</p>
+            {enabled && (
+              <span className="flex items-center gap-1 bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                Active
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {enabled
+              ? 'Customers can see you in "Near Me" search 📍'
+              : 'Turn on to appear in nearby customer searches'}
+          </p>
+          {lastUpdated && (
+            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+              <Clock size={11} />
+              Last updated: {new Date(lastUpdated).toLocaleString('en-US', {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              })}
+            </p>
+          )}
+        </div>
+
+        {/* Toggle switch */}
+        <button
+          onClick={handleToggle}
+          disabled={toggling}
+          aria-label={enabled ? 'Disable location' : 'Enable location'}
+          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors flex-shrink-0 focus:outline-none ${
+            enabled ? 'bg-green-500' : 'bg-gray-300'
+          } ${toggling ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'}`}
+        >
+          <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+            enabled ? 'translate-x-7' : 'translate-x-1'
+          }`} />
+          {toggling && (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Loader2 size={14} className="text-white animate-spin" />
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* How it works */}
+      <div className={`mt-4 rounded-xl p-3 transition-all ${enabled ? 'bg-green-100/60' : 'bg-gray-50'}`}>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">How it works</p>
+        <div className="space-y-1 text-xs text-gray-600">
+          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-green-500 flex-shrink-0" /> Toggle ON karuwotha oya GPS location save wenawa</p>
+          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-green-500 flex-shrink-0" /> Customers "Near Me" click karuwotha oya penawa</p>
+          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-green-500 flex-shrink-0" /> Toggle OFF karuwotha customers oya balanna bari wenawa</p>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mt-3 flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2.5 rounded-xl">
+          <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────
 
 // Bookings Summary Component
 function BookingsSummary() {
@@ -368,6 +515,9 @@ export default function PartnerProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* ── Live Location Toggle ── */}
+        <LocationToggle provider={provider} />
 
         {/* Bookings Summary - Integrated */}
         <BookingsSummary />

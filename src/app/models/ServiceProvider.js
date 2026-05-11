@@ -126,6 +126,29 @@ const ServiceProviderSchema = new mongoose.Schema({
     default: false,
   },
 
+  // ✅ GPS location for nearby search
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: [0, 0],
+    },
+  },
+
+  // ✅ Partner location on/off toggle — customer side eke penenna kiyala
+  locationEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  locationUpdatedAt: {
+    type: Date,
+    default: null,
+  },
+
   // Multiple Services (Fiverr style)
   services: [ServiceSchema],
 
@@ -133,6 +156,9 @@ const ServiceProviderSchema = new mongoose.Schema({
   timestamps: true,
   collection: 'serviceproviders'
 });
+
+// 2dsphere index — nearby search karanna must
+ServiceProviderSchema.index({ location: '2dsphere' });
 
 const ServiceProvider = mongoose.models.ServiceProvider || mongoose.model('ServiceProvider', ServiceProviderSchema);
 
