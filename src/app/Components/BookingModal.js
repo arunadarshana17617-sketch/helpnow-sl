@@ -1,10 +1,23 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import {
   X, Calendar, MapPin, Phone, FileText, Clock,
-  CheckCircle2, Loader2, AlertCircle, User, Home
+  CheckCircle2, Loader2, AlertCircle, User, Home, Navigation
 } from 'lucide-react';
+
+// Haversine distance (km)
+function getDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const districts = [
   'Colombo','Gampaha','Kalutara','Kandy','Matale','Nuwara Eliya',
@@ -14,13 +27,9 @@ const districts = [
   'Moneragala','Ratnapura','Kegalle'
 ];
 
-export default function BookingModal({ provider, service, onClose }) {
+export default function BookingModal({ provider: initialProvider, service, onClose }) {
   const { data: session, status } = useSession();
 
-  // step 1 = login check / loading
-  // step 2 = customer details (profile fill)
-  // step 3 = job details
-  // step 4 = success
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -40,7 +49,131 @@ export default function BookingModal({ provider, service, onClose }) {
     customerNotes: '',
   });
 
-  // Session load wela session thiyanawa nam — DB eken customer check karanna
+  // ✅ Live provider state — polling karala update wenawa
+  const [liveProvider, setLiveProvider] = useState(initialProvider);
+  const pollIntervalRef = useRef(null);
+
+  // Customer GPS location state
+  const [customerCoords, setCustomerCoords] = useState(null);
+  const [locationOn, setLocationOn] = useState(false);
+  const [locationFetching, setLocationFetching] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [locationAttempted, setLocationAttempted] = useState(false);
+
+  // ✅ Provider live location — liveProvider eken read karanna
+  const providerCoords = liveProvider?.location?.coordinates; // [lng, lat]
+  const providerLat = providerCoords?.[1];
+  const providerLng = providerCoords?.[0];
+  const providerHasValidCoords = providerLat != null && providerLng != null
+    && !(providerLat === 0 && providerLng === 0);
+  // FIX: locationEnabled=true wunaham always panel pennanna (coords thiyanawa nam distance pennanna)
+  const providerHasLocation = liveProvider?.locationEnabled === true;
+
+  // ✅ Poll provider location — step 3 wunama start, close/unmount wunama stop
+  useEffect(() => {
+    if (step !== 3 || !initialProvider?._id) return;
+
+    // API call karanna function
+    const fetchProviderLocation = async () => {
+      try {
+        // ✅ /api/provider-location/:id — dedicated polling endpoint
+        const res = await fetch(`/api/provider-location/${initialProvider._id}`);
+        const data = await res.json();
+        if (data?.provider) {
+          setLiveProvider(prev => ({ ...prev, ...data.provider }));
+        }
+      } catch (_) {
+        // Silent fail — next poll try karanawa
+      }
+    };
+
+    // ✅ Immediately fetch once, then hama 30s kata
+    fetchProviderLocation();
+    pollIntervalRef.current = setInterval(fetchProviderLocation, 30_000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [step, initialProvider?._id]);
+
+  // Distance calculation — liveProvider update wunaham automatically recalculate
+  const distanceToProvider = useMemo(() => {
+    if (!providerHasValidCoords) return null; // provider coords valid na wunaham skip
+    if (!locationOn) return null;
+    if (customerCoords) return getDistanceKm(customerCoords.lat, customerCoords.lng, providerLat, providerLng);
+    return null;
+  }, [customerCoords, locationOn, providerHasValidCoords, providerLat, providerLng]);
+
+  const distLabel = distanceToProvider !== null
+    ? distanceToProvider < 1
+      ? `${Math.round(distanceToProvider * 1000)}m`
+      : `${distanceToProvider.toFixed(1)}km`
+    : null;
+
+  const handleLocationToggle = async () => {
+    if (locationOn) {
+      setLocationOn(false);
+      setCustomerCoords(null);
+      setLocationDenied(false);
+      setLocationAttempted(false);
+      return;
+    }
+
+    setLocationError('');
+    setLocationDenied(false);
+    setLocationAttempted(true);
+
+    let alreadyDenied = false;
+    if (navigator.permissions) {
+      try {
+        const perm = await navigator.permissions.query({ name: 'geolocation' });
+        if (perm.state === 'denied') alreadyDenied = true;
+      } catch (_) {}
+    }
+
+    if (alreadyDenied) {
+      setLocationDenied(true);
+      return;
+    }
+
+    setLocationFetching(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCustomerCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationOn(true);
+        setLocationDenied(false);
+        setLocationFetching(false);
+      },
+      (err) => {
+        if (err.code === 1) {
+          setLocationDenied(true);
+          setLocationOn(false);
+          setLocationFetching(false);
+        } else {
+          // timeout or unavailable - retry without high accuracy
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setCustomerCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              setLocationOn(true);
+              setLocationDenied(false);
+              setLocationFetching(false);
+            },
+            () => {
+              setLocationOn(false);
+              setLocationFetching(false);
+            },
+            { timeout: 15000, enableHighAccuracy: false }
+          );
+        }
+      },
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
+    );
+  };
+
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.email) {
       checkExistingCustomer();
@@ -55,7 +188,6 @@ export default function BookingModal({ provider, service, onClose }) {
 
       if (data.success && data.customer) {
         const c = data.customer;
-        // Pre-fill with existing data
         setCustomerData({
           phone: c.phone || '',
           address: c.address || '',
@@ -63,25 +195,22 @@ export default function BookingModal({ provider, service, onClose }) {
           city: c.city || '',
         });
 
-        // Profile already complete nam — directly job details step ekata
         if (c.isProfileComplete) {
           setStep(3);
         } else {
           setStep(2);
         }
       } else {
-        // New customer — profile fill karanna
         setStep(2);
       }
     } catch (err) {
-      // Error wunath — profile step ekata yanawa
       setStep(2);
     } finally {
       setProfileLoading(false);
     }
   };
 
-  // ── Loading state (session check wenakota) ──────────────────────────────
+  // ── Loading state ─────────────────────────────────────────────
   if (status === 'loading' || (status === 'authenticated' && profileLoading)) {
     return (
       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -95,7 +224,7 @@ export default function BookingModal({ provider, service, onClose }) {
     );
   }
 
-  // ── Not logged in — Google sign-in screen ────────────────────────────────
+  // ── Not logged in ─────────────────────────────────────────────
   if (status === 'unauthenticated') {
     return (
       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -112,7 +241,7 @@ export default function BookingModal({ provider, service, onClose }) {
               <User size={40} className="text-orange-500" />
             </div>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              {provider.fullName} book karanna login karanna one
+              {liveProvider.fullName} book karanna login karanna one
             </h3>
             <p className="text-gray-500 text-sm mb-6">
               Google account ekata login karanawa. Account nattam automatically hadagannawa.
@@ -121,7 +250,6 @@ export default function BookingModal({ provider, service, onClose }) {
               onClick={() => signIn('google', { callbackUrl: window.location.href })}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl transition flex items-center justify-center gap-3"
             >
-              {/* Google icon */}
               <svg width="20" height="20" viewBox="0 0 24 24">
                 <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -136,7 +264,7 @@ export default function BookingModal({ provider, service, onClose }) {
     );
   }
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────
   const handleCustomerNext = (e) => {
     e.preventDefault();
     if (!customerData.phone || !customerData.address || !customerData.district) {
@@ -162,7 +290,7 @@ export default function BookingModal({ provider, service, onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          providerId: provider._id,
+          providerId: liveProvider._id,
           serviceCategory: service?.category,
           ...customerData,
           ...jobData,
@@ -182,14 +310,14 @@ export default function BookingModal({ provider, service, onClose }) {
     }
   };
 
-  // ── Step indicator helper ─────────────────────────────────────────────────
+  // ── Step indicator ────────────────────────────────────────────
   const steps = [
     { n: 2, label: 'Your Details' },
     { n: 3, label: 'Job Info' },
     { n: 4, label: 'Done' },
   ];
 
-  // ── Main modal (steps 2, 3, 4) ───────────────────────────────────────────
+  // ── Main modal ────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4">
@@ -198,7 +326,7 @@ export default function BookingModal({ provider, service, onClose }) {
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div>
             <h2 className="text-xl font-bold text-blue-950">Book Service</h2>
-            <p className="text-sm text-gray-500">{provider.fullName} — {service?.profession}</p>
+            <p className="text-sm text-gray-500">{liveProvider.fullName} — {service?.profession}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
             <X size={24} />
@@ -238,7 +366,6 @@ export default function BookingModal({ provider, service, onClose }) {
         {/* ── STEP 2: Customer Details ── */}
         {step === 2 && (
           <form onSubmit={handleCustomerNext} className="p-6 space-y-4">
-            {/* Logged-in user info */}
             <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3">
               {session.user?.image ? (
                 <img src={session.user.image} alt="" className="w-10 h-10 rounded-full" />
@@ -330,6 +457,88 @@ export default function BookingModal({ provider, service, onClose }) {
         {/* ── STEP 3: Job Details ── */}
         {step === 3 && (
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+            {/* ── Provider Distance / Location Panel ── */}
+            {providerHasLocation ? (
+              <div className={`rounded-xl p-4 border transition-all ${
+                locationOn && distLabel ? 'bg-green-50 border-green-200'
+                : locationOn ? 'bg-blue-50 border-blue-200'
+                : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  {/* Left — status text */}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      locationOn ? 'bg-green-500' : 'bg-gray-300'
+                    }`}>
+                      <MapPin size={16} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                        {/* ✅ Live pulse dot */}
+                        <span className="w-2 h-2 rounded-full inline-block bg-green-500 animate-pulse" />
+                        Provider location shared (Live)
+                      </p>
+                      {locationFetching ? (
+                        <p className="text-xs text-blue-500 font-medium flex items-center gap-1">
+                          <Loader2 size={11} className="animate-spin" /> ඔයාගේ location හොයනවා...
+                        </p>
+                      ) : locationDenied && locationAttempted ? (
+                        <p className="text-xs text-amber-600 font-medium">⚠ Location blocked</p>
+                      ) : locationOn && distLabel ? (
+                        <p className="text-xs text-green-700 font-medium">
+                          ✓ Location ON — {liveProvider.fullName} ඔයාගෙන් <strong>{distLabel}</strong> දුරේ ඉන්නවා
+                        </p>
+                      ) : locationOn ? (
+                        <p className="text-xs text-green-600 font-medium">✓ Location ON</p>
+                      ) : (
+                        <p className="text-xs text-gray-400 font-medium">✗ Location OFF</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right — toggle button */}
+                  <button
+                    type="button"
+                    onClick={handleLocationToggle}
+                    disabled={locationFetching}
+                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-60 flex-shrink-0 ${
+                      locationOn
+                        ? 'bg-red-100 hover:bg-red-200 text-red-700'
+                        : 'bg-green-500 hover:bg-green-600 text-white'
+                    }`}
+                  >
+                    {locationFetching ? (
+                      <><Loader2 size={12} className="animate-spin" /> Locating...</>
+                    ) : locationOn ? (
+                      <><Navigation size={12} /> Location ON</>
+                    ) : (
+                      <><Navigation size={12} /> My Location</>
+                    )}
+                  </button>
+                </div>
+
+                {/* Denied banner */}
+                {locationDenied && locationAttempted && (
+                  <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                    <AlertCircle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    <span>
+                      Browser eka location block karala. Address bar eke 🔒 icon click → <strong>Location → Allow</strong> karanna, eka passe "My Location" click karanna.
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Provider hasn't shared location — show city/district only
+              <div className="bg-blue-50 rounded-xl p-3 flex items-center gap-2 border border-blue-100">
+                <MapPin size={16} className="text-blue-500 flex-shrink-0" />
+                <p className="text-xs text-blue-700">
+                  Provider ගේ area: <strong>{liveProvider.city}, {liveProvider.district}</strong>
+                  {liveProvider.maxDistance && ` · ${liveProvider.maxDistance}km radius ඇතුළේ travels`}
+                </p>
+              </div>
+            )}
+
             {/* Rate info */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex justify-between items-center">
@@ -436,7 +645,7 @@ export default function BookingModal({ provider, service, onClose }) {
             </div>
             <h3 className="text-2xl font-bold text-blue-950 mb-2">Booking Confirmed!</h3>
             <p className="text-gray-600 mb-2">
-              Your booking with <strong>{provider.fullName}</strong> has been submitted.
+              Your booking with <strong>{liveProvider.fullName}</strong> has been submitted.
             </p>
             <p className="text-sm text-gray-500 mb-6">
               The service provider will contact you soon on <strong>{customerData.phone}</strong>.

@@ -1,6 +1,6 @@
 ﻿'use client';
 // src/app/partner/dashboard/page.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
@@ -14,8 +14,62 @@ import {
 function LocationToggle() {
   const [enabled, setEnabled] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [permDenied, setPermDenied] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  // ✅ interval ref — location ON karagena innakota hama 30s kata GPS update karanna
+  const intervalRef = useRef(null);
+
+  // ── Background GPS push function ─────────────────────────────
+  // Location ON innakota silently GPS coordinates update karanawa (no UI feedback)
+  const pushLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await fetch('/api/partner/location', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              enabled: true,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            }),
+          });
+          setLastUpdated(new Date().toISOString());
+        } catch (_) {
+          // Silent fail — next interval try karanawa
+        }
+      },
+      () => {
+        // GPS error — silent fail
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  };
+
+  // ── Start / stop interval based on 'enabled' ─────────────────
+  useEffect(() => {
+    if (enabled) {
+      // ✅ Interval start — hama 30s kata GPS push
+      intervalRef.current = setInterval(pushLocation, 30_000);
+    } else {
+      // ✅ Interval clear — location OFF wunama stop
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    // Cleanup: component unmount wunama clear
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [enabled]);
 
   // Fetch current status on mount
   useEffect(() => {
@@ -28,9 +82,25 @@ function LocationToggle() {
         }
       })
       .catch(console.error);
+
+    // Check permission state silently (no prompt)
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'denied') setPermDenied(true);
+        result.onchange = () => {
+          setPermDenied(result.state === 'denied');
+          if (result.state !== 'denied') setError(null);
+        };
+      }).catch(() => {});
+    }
   }, []);
 
   const handleToggle = async () => {
+    if (!enabled && permDenied) {
+      setError('denied');
+      return;
+    }
+
     setToggling(true);
     setError(null);
     try {
@@ -54,8 +124,14 @@ function LocationToggle() {
       if (!res.ok) throw new Error(json.error || 'Failed');
       setEnabled(json.data.locationEnabled);
       setLastUpdated(json.data.locationUpdatedAt);
+      setError(null);
     } catch (err) {
-      setError(err.code === 1 ? 'Location permission denied. Please allow location access.' : err.message);
+      if (err.code === 1) {
+        setPermDenied(true);
+        setError('denied');
+      } else {
+        setError(err.message || 'Something went wrong');
+      }
     } finally {
       setToggling(false);
     }
@@ -82,9 +158,15 @@ function LocationToggle() {
               ? 'Customers can find you nearby 🟢'
               : 'Your location is hidden from customers'}
           </p>
-          {lastUpdated && (
+          {/* ✅ Live update timestamp */}
+          {lastUpdated && enabled && (
+            <p className="text-xs text-green-600 mt-0.5 font-medium">
+              📍 Updated {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          )}
+          {lastUpdated && !enabled && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Updated {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              Last: {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </p>
           )}
         </div>
@@ -95,7 +177,7 @@ function LocationToggle() {
           disabled={toggling}
           aria-label={enabled ? 'Disable location' : 'Enable location'}
           className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
-            enabled ? 'bg-green-500' : 'bg-gray-300'
+            enabled ? 'bg-green-500' : permDenied ? 'bg-amber-300' : 'bg-gray-300'
           } ${toggling ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           <span
@@ -109,7 +191,44 @@ function LocationToggle() {
         </button>
       </div>
 
-      {error && (
+      {/* ✅ Live tracking active badge */}
+      {enabled && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
+          Live tracking active — GPS හැම තත්පර 30කට update වෙනවා
+        </div>
+      )}
+
+      {/* Permission denied — step-by-step browser guide */}
+      {error === 'denied' && (
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-semibold text-amber-800">Location access is blocked</p>
+          </div>
+          <p className="text-xs text-amber-700 mb-2">
+            Browser eka location block kara tiyenawa. Mekata allow karanna:
+          </p>
+          <ul className="text-xs text-amber-700 space-y-1.5">
+            <li>🔒 <strong>Chrome:</strong> Address bar eke lock icon click karanna → "Site settings" → Location → Allow</li>
+            <li>🔒 <strong>Firefox:</strong> Lock icon click → Clear permission → Page reload karanna</li>
+            <li>🔒 <strong>Edge:</strong> Lock icon → Permissions → Location → Allow</li>
+            <li>📱 <strong>Mobile:</strong> Settings → Browser → Location → Allow</li>
+          </ul>
+          <p className="text-xs text-amber-600 mt-3">
+            Allow karagena page reload (F5) karanna, habai toggle ON karanna.
+          </p>
+          <button
+            onClick={() => setError(null)}
+            className="mt-3 text-xs text-amber-600 underline hover:text-amber-800 transition"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Other errors */}
+      {error && error !== 'denied' && (
         <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">
           <AlertCircle size={14} />
           {error}
@@ -136,7 +255,7 @@ export default function PartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
-  const [actionLoading, setActionLoading] = useState(null); // booking id of the one being updated
+  const [actionLoading, setActionLoading] = useState(null);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
@@ -208,7 +327,7 @@ export default function PartnerDashboard() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-blue-950">My Bookings</h1>
-            <p className="text-sm text-gray-500">{session?.user?.name} � Partner Dashboard</p>
+            <p className="text-sm text-gray-500">{session?.user?.name} · Partner Dashboard</p>
           </div>
           <button
             onClick={fetchBookings}
@@ -224,10 +343,10 @@ export default function PartnerDashboard() {
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { key: 'pending',   label: 'Pending',   icon: Clock,        color: 'text-yellow-500' },
-            { key: 'confirmed', label: 'Confirmed',  icon: BadgeCheck,   color: 'text-blue-500'   },
-            { key: 'in_progress', label: 'Active',   icon: PlayCircle,   color: 'text-purple-500' },
-            { key: 'completed', label: 'Done',        icon: CheckCircle2, color: 'text-green-500'  },
+            { key: 'pending',     label: 'Pending',   icon: Clock,        color: 'text-yellow-500' },
+            { key: 'confirmed',   label: 'Confirmed',  icon: BadgeCheck,   color: 'text-blue-500'   },
+            { key: 'in_progress', label: 'Active',     icon: PlayCircle,   color: 'text-purple-500' },
+            { key: 'completed',   label: 'Done',       icon: CheckCircle2, color: 'text-green-500'  },
           ].map(({ key, label, icon: Icon, color }) => (
             <div key={key} className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
               <Icon size={22} className={`${color} mx-auto mb-1`} />
@@ -296,7 +415,6 @@ export default function PartnerDashboard() {
                   className="flex items-start gap-4 p-4 cursor-pointer hover:bg-gray-50 transition"
                   onClick={() => setExpandedId(isExpanded ? null : booking._id)}
                 >
-                  {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
                     <User size={18} className="text-orange-500" />
                   </div>
@@ -309,7 +427,7 @@ export default function PartnerDashboard() {
                         {cfg.label}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5 truncate">{booking.serviceProfession} � {booking.serviceCategory}</p>
+                    <p className="text-sm text-gray-500 mt-0.5 truncate">{booking.serviceProfession} · {booking.serviceCategory}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                       <span className="flex items-center gap-1">
                         <CalendarDays size={12} />
@@ -360,13 +478,11 @@ export default function PartnerDashboard() {
                       </div>
                     </div>
 
-                    {/* Job description */}
                     <div className="bg-blue-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Job Description</p>
                       <p className="text-sm text-gray-700">{booking.jobDescription}</p>
                     </div>
 
-                    {/* Customer notes */}
                     {booking.customerNotes && (
                       <div className="bg-orange-50 rounded-xl p-3">
                         <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">Customer Notes</p>
@@ -374,7 +490,6 @@ export default function PartnerDashboard() {
                       </div>
                     )}
 
-                    {/* Action buttons based on current status */}
                     <div className="flex gap-2 flex-wrap pt-1">
                       {booking.status === 'pending' && (
                         <>

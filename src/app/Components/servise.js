@@ -202,17 +202,8 @@ const ServicesUI = () => {
     fetchCraftsmen();
   }, []);
 
-  // Get user GPS on mount (silently — don't force nearby mode automatically)
-  useEffect(() => {
-    setLocationStatus('loading');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setLocationStatus('granted');
-      },
-      () => setLocationStatus('denied')
-    );
-  }, []);
+  // Location is NOT requested on mount.
+  // We only ask when the user explicitly clicks "Near Me".
 
   // Near Me toggle handler
   const handleNearbyToggle = async () => {
@@ -223,15 +214,18 @@ const ServicesUI = () => {
       return;
     }
 
-    // Turn ON — need location
-    if (locationStatus === 'denied') return; // already denied, can't do anything
+    // If previously denied, show the banner again so user knows what to do
+    if (locationStatus === 'denied') {
+      setLocationStatus('denied');
+      return;
+    }
 
     setNearbyLoading(true);
 
     try {
       let coords = userCoords;
 
-      // If we don't have coords yet, get them now
+      // Request location now (user clicked the button, so this is intentional)
       if (!coords) {
         const pos = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
@@ -789,13 +783,12 @@ const ServicesUI = () => {
                 {/* ── Near Me Toggle ── */}
                 <button
                   onClick={handleNearbyToggle}
-                  disabled={nearbyLoading || locationStatus === 'denied'}
-                  title={locationStatus === 'denied' ? 'Location access denied' : ''}
+                  disabled={nearbyLoading}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full border font-semibold text-sm transition-all ${
                     nearbyOnly
                       ? 'bg-green-500 text-white border-green-500 shadow-md'
                       : locationStatus === 'denied'
-                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      ? 'bg-amber-50 text-amber-600 border-amber-300 hover:border-amber-400'
                       : 'bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-600'
                   }`}
                 >
@@ -852,9 +845,31 @@ const ServicesUI = () => {
               </div>
             )}
             {!loading && locationStatus === 'denied' && (
-              <div className="flex items-center gap-2 mb-4 text-sm text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl w-fit">
-                <MapPin size={14} />
-                Location off — showing all providers
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <MapPin size={18} className="text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-800 text-sm">Location access denied</p>
+                    <p className="text-amber-700 text-xs mt-1">
+                      "Near Me" feature requires location access. To enable it:
+                    </p>
+                    <ul className="text-amber-700 text-xs mt-2 space-y-1 list-disc list-inside">
+                      <li><strong>Chrome:</strong> Click the 🔒 lock icon in the address bar → Site settings → Location → Allow</li>
+                      <li><strong>Firefox:</strong> Click the 🔒 lock icon → Clear permission → Reload page</li>
+                      <li><strong>Safari:</strong> Settings → Safari → Location → Allow</li>
+                    </ul>
+                    <p className="text-amber-600 text-xs mt-2">After allowing, reload the page and try again.</p>
+                  </div>
+                  <button
+                    onClick={() => setLocationStatus('idle')}
+                    className="text-amber-500 hover:text-amber-700 transition flex-shrink-0"
+                    title="Dismiss"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -960,13 +975,23 @@ const ServicesUI = () => {
                                       24/7 Emergency
                                     </div>
                                   )}
-                                  {/* Distance badge */}
-                                  {distLabel && (
+                                  {/* Live Location badge — locationEnabled on wela distance thiyanawa nam */}
+                                  {craftsman.locationEnabled && distLabel ? (
+                                    <div className="flex items-center gap-1 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-semibold shadow-sm">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block"></span>
+                                      Live · {distLabel} away
+                                    </div>
+                                  ) : craftsman.locationEnabled && !distLabel ? (
                                     <div className="flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-semibold">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
+                                      Location Shared
+                                    </div>
+                                  ) : distLabel ? (
+                                    <div className="flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-semibold">
                                       <MapPin size={11} />
                                       {distLabel} away
                                     </div>
-                                  )}
+                                  ) : null}
                                 </div>
                                 <p className="text-orange-600 font-medium mt-1">{service.profession || 'N/A'}</p>
 
