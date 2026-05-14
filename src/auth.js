@@ -6,7 +6,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      checks: ["state"],
+      checks: [],
     }),
   ],
   pages: {
@@ -19,17 +19,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async redirect({ url, baseUrl }) {
-      console.log("Redirect callback - url:", url);
       return url.startsWith(baseUrl) ? url : baseUrl;
     },
     async session({ session, token }) {
-      console.log("Session callback - session:", session?.user?.email);
       return session;
     },
     async jwt({ token, user, account }) {
-      if (account) {
-        console.log("JWT callback - account provider:", account.provider);
-      }
       return token;
     }
   },
