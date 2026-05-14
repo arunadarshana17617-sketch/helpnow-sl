@@ -1,106 +1,155 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import ServiceProvider from '@/app/models/ServiceProvider';
+import { v2 as cloudinary } from 'cloudinary';
 
-export async function GET(request) {
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Helper: upload buffer to Cloudinary
+async function uploadToCloudinary(buffer, folder, filename) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, public_id: filename, resource_type: 'auto' },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result.secure_url);
+      }
+    );
+    stream.end(buffer);
+  });
+}
+
+export async function POST(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
-    const search = searchParams.get('search');
-    const emergency = searchParams.get('emergency');
-    const limit = parseInt(searchParams.get('limit') || '100');
-    const page = parseInt(searchParams.get('page') || '1');
-    const skip = (page - 1) * limit;
-
-    const lat = parseFloat(searchParams.get('lat'));
-    const lng = parseFloat(searchParams.get('lng'));
-    const radius = parseInt(searchParams.get('radius') || '15000'); // default 15km
-
-    const hasLocation = !isNaN(lat) && !isNaN(lng);
-
     await connectDB();
 
-    // Base filters - always apply these
-    const baseQuery = {};
+    const formData = await request.formData();
 
-    if (category && category !== 'all') {
-      baseQuery['services.category'] = category;
-    }
-    if (emergency === 'true') {
-      baseQuery.emergencyAvailable = true;
-    }
-    if (search) {
-      baseQuery.$or = [
-        { fullName: { $regex: search, $options: 'i' } },
-        { 'services.profession': { $regex: search, $options: 'i' } },
-        { 'services.skills': { $in: [new RegExp(search, 'i')] } },
-        { 'services.description': { $regex: search, $options: 'i' } },
-      ];
-    }
+    // ── Personal Info ──────────────────────────────────────────
+    const fullName   = formData.get('fullName');
+    const email      = formData.get('email');
+    const phone      = formData.get('phone');
+    const whatsapp   = formData.get('whatsapp') || phone;
+    const password   = formData.get('password');
 
-    let craftsmen = [];
-    let total = 0;
+    // ── Professional Info ──────────────────────────────────────
+    const category    = formData.get('category');
+    const profession  = formData.get('profession');
+    const experience  = formData.get('experience');
+    const dailyRate   = formData.get('dailyRate');
+    const skills      = JSON.parse(formData.get('skills') || '[]');
+    const description = formData.get('description') || '';
 
-    if (hasLocation) {
-      // ── Location ON ───────────────────────────────────────────
-      // Step 1: Get nearby providers (within radius), sorted by distance
-      const nearbyQuery = {
-        ...baseQuery,
-        location: {
-          $near: {
-            $geometry: { type: 'Point', coordinates: [lng, lat] },
-            $maxDistance: radius,
-          },
-        },
-      };
+    // ── Service Areas ──────────────────────────────────────────
+    const serviceAreas      = JSON.parse(formData.get('serviceAreas') || '[]');
+    const city              = formData.get('city');
+    const district          = formData.get('district');
+    const maxDistance       = formData.get('maxDistance') || '30';
+    const emergencyAvailable = formData.get('emergencyAvailable') === 'true';
 
-      const nearby = await ServiceProvider.find(nearbyQuery)
-        .select('-password')
-        .lean();
+    // ── Verification ───────────────────────────────────────────
+    const insurance = formData.get('insurance') === 'true';
 
-      // Step 2: Get everyone else (outside radius or no location saved)
-      const othersQuery = {
-        ...baseQuery,
-        _id: { $nin: nearby.map(p => p._id) },
-      };
-
-      const others = await ServiceProvider.find(othersQuery)
-        .sort({ createdAt: -1 })
-        .select('-password')
-        .lean();
-
-      // Step 3: Nearby on top, rest below
-      craftsmen = [...nearby, ...others];
-      total = craftsmen.length;
-
-    } else {
-      // ── Location OFF: show all, newest first ──────────────────
-      total = await ServiceProvider.countDocuments(baseQuery);
-
-      craftsmen = await ServiceProvider.find(baseQuery)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .select('-password')
-        .lean();
+    // Basic validation
+    if (!fullName || !email || !phone || !password || !category || !profession) {
+      return NextResponse.json(
+        { error: 'Required fields are missing' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      craftsmen,
-      locationUsed: hasLocation,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
+    // Check duplicate email
+    const existing = await ServiceProvider.findOne({ email });
+    if (existing) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists' },
+        { status: 409 }
+      );
+    }
+
+    // ── File Uploads ───────────────────────────────────────────
+    let photoUrl      = null;
+    let nicFrontUrl   = null;
+    let nicBackUrl    = null;
+    let policeUrl     = null;
+    const certificateUrls = [];
+
+    const photoFile = formData.get('photo');
+    if (photoFile && photoFile.size > 0) {
+      const buf = Buffer.from(await photoFile.arrayBuffer());
+      photoUrl = await uploadToCloudinary(buf, 'helpnow/photos', `photo_${Date.now()}`);
+    }
+
+    const nicFrontFile = formData.get('nicFront');
+    if (nicFrontFile && nicFrontFile.size > 0) {
+      const buf = Buffer.from(await nicFrontFile.arrayBuffer());
+      nicFrontUrl = await uploadToCloudinary(buf, 'helpnow/nic', `nic_front_${Date.now()}`);
+    }
+
+    const nicBackFile = formData.get('nicBack');
+    if (nicBackFile && nicBackFile.size > 0) {
+      const buf = Buffer.from(await nicBackFile.arrayBuffer());
+      nicBackUrl = await uploadToCloudinary(buf, 'helpnow/nic', `nic_back_${Date.now()}`);
+    }
+
+    const policeFile = formData.get('policeReport');
+    if (policeFile && policeFile.size > 0) {
+      const buf = Buffer.from(await policeFile.arrayBuffer());
+      policeUrl = await uploadToCloudinary(buf, 'helpnow/police', `police_${Date.now()}`);
+    }
+
+    const certFiles = formData.getAll('certificates');
+    for (const certFile of certFiles) {
+      if (certFile && certFile.size > 0) {
+        const buf = Buffer.from(await certFile.arrayBuffer());
+        const url = await uploadToCloudinary(buf, 'helpnow/certificates', `cert_${Date.now()}`);
+        certificateUrls.push(url);
+      }
+    }
+
+    // ── Save to DB ─────────────────────────────────────────────
+    const provider = await ServiceProvider.create({
+      fullName,
+      email,
+      phone,
+      whatsapp,
+      password,           // hash karanne model eke pre-save hook ekin nam eka okei, nattam api karanna ona
+      photo: photoUrl,
+      services: {
+        category,
+        profession,
+        experience,
+        dailyRate: parseFloat(dailyRate) || 0,
+        skills,
+        description,
+        certificates: certificateUrls,
       },
+      serviceAreas,
+      city,
+      district,
+      maxDistance: parseInt(maxDistance) || 30,
+      emergencyAvailable,
+      insurance,
+      nicFront: nicFrontUrl,
+      nicBack: nicBackUrl,
+      policeReport: policeUrl,
+      status: 'pending',
     });
 
-  } catch (error) {
-    console.error('Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: true, providerId: provider._id },
+      { status: 201 }
+    );
+
+  } catch (error) {
+    console.error('Register error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Registration failed' },
       { status: 500 }
     );
   }
