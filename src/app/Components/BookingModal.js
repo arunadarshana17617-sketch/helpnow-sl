@@ -114,6 +114,28 @@ export default function BookingModal({ provider: initialProvider, service, onClo
       : `${distanceToProvider.toFixed(1)}km`
     : null;
 
+  // ── GPS grab helper — retry logic ekkata ──────────────────────
+  const grabGPS = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('UNAVAILABLE'));
+      return;
+    }
+    // First attempt: low accuracy, cached ok (fast)
+    navigator.geolocation.getCurrentPosition(
+      resolve,
+      (err) => {
+        if (err.code === 1) { reject(new Error('DENIED')); return; }
+        // Timeout/unavailable — retry once without maximumAge
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          () => reject(new Error('TIMEOUT')),
+          { timeout: 15000, enableHighAccuracy: false }
+        );
+      },
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 120000 }
+    );
+  });
+
   const handleLocationToggle = async () => {
     if (locationOn) {
       setLocationOn(false);
@@ -127,52 +149,53 @@ export default function BookingModal({ provider: initialProvider, service, onClo
     setLocationDenied(false);
     setLocationAttempted(true);
 
-    let alreadyDenied = false;
+    // Check permission state first (no prompt)
     if (navigator.permissions) {
       try {
         const perm = await navigator.permissions.query({ name: 'geolocation' });
-        if (perm.state === 'denied') alreadyDenied = true;
+        if (perm.state === 'denied') {
+          setLocationDenied(true);
+          return;
+        }
       } catch (_) {}
     }
 
-    if (alreadyDenied) {
-      setLocationDenied(true);
-      return;
-    }
-
     setLocationFetching(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCustomerCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setLocationOn(true);
-        setLocationDenied(false);
-        setLocationFetching(false);
-      },
-      (err) => {
-        if (err.code === 1) {
-          setLocationDenied(true);
-          setLocationOn(false);
-          setLocationFetching(false);
-        } else {
-          // timeout or unavailable - retry without high accuracy
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              setCustomerCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-              setLocationOn(true);
-              setLocationDenied(false);
-              setLocationFetching(false);
-            },
-            () => {
-              setLocationOn(false);
-              setLocationFetching(false);
-            },
-            { timeout: 15000, enableHighAccuracy: false }
-          );
-        }
-      },
-      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
-    );
+    try {
+      const pos = await grabGPS();
+      setCustomerCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      setLocationOn(true);
+      setLocationDenied(false);
+    } catch (err) {
+      if (err.message === 'DENIED') {
+        setLocationDenied(true);
+      } else {
+        // TIMEOUT or UNAVAILABLE — localhost HTTP gedi wenas wenawa
+        // User ku warning pennanna
+        setLocationError('GPS timeout. Browser settings eke location allow karagena retry karanna.');
+      }
+      setLocationOn(false);
+    } finally {
+      setLocationFetching(false);
+    }
   };
+
+  // ── Auto-grab GPS when step 3 loads (if permission already granted) ──
+  useEffect(() => {
+    if (step !== 3 || locationOn || locationAttempted) return;
+    if (!navigator.permissions) return;
+    navigator.permissions.query({ name: 'geolocation' }).then(result => {
+      if (result.state === 'granted') {
+        // Permission already there — silently grab, no prompt
+        setLocationAttempted(true);
+        setLocationFetching(true);
+        grabGPS().then(pos => {
+          setCustomerCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setLocationOn(true);
+        }).catch(() => {}).finally(() => setLocationFetching(false));
+      }
+    }).catch(() => {});
+  }, [step]);
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.email) {
@@ -526,6 +549,33 @@ export default function BookingModal({ provider: initialProvider, service, onClo
                       Browser eka location block karala. Address bar eke 🔒 icon click → <strong>Location → Allow</strong> karanna, eka passe "My Location" click karanna.
                     </span>
                   </div>
+                )}
+
+                {/* GPS timeout / HTTP error */}
+                {locationError && !locationDenied && (
+                  <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                    <AlertCircle size={13} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold mb-0.5">GPS work kale nae</p>
+                      <p>{locationError}</p>
+                      {window.location.protocol === 'http:' && !window.location.hostname.includes('localhost') && (
+                        <p className="mt-1 text-amber-700 font-medium">⚠ HTTP site wala GPS block wenawa. HTTPS use karanna.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Google Maps link when location ON */}
+                {locationOn && customerCoords && providerHasValidCoords && (
+                  <a
+                    href={`https://www.google.com/maps/dir/${customerCoords.lat},${customerCoords.lng}/${providerLat},${providerLng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 flex items-center gap-2 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 hover:bg-blue-100 transition w-fit"
+                  >
+                    <MapPin size={12} />
+                    Google Maps eke directions balanna
+                  </a>
                 )}
               </div>
             ) : (

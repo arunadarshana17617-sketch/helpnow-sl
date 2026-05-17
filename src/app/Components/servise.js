@@ -199,18 +199,42 @@ const ServicesUI = () => {
   }, []);
 
   useEffect(() => {
-    fetchCraftsmen();
+    // Mount time: permission already granted nam silently GPS grab karala coords ekkat fetch
+    // Denied/prompt nam normal load — user ku prompt dakkenna ne
+    const loadWithOptionalLocation = () => {
+      if (!navigator.geolocation || !navigator.permissions) {
+        fetchCraftsmen(null, false);
+        return;
+      }
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'granted') {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              setUserCoords(coords);
+              setLocationStatus('granted');
+              fetchCraftsmen(coords, false);
+            },
+            () => fetchCraftsmen(null, false),
+            { timeout: 5000 }
+          );
+        } else {
+          fetchCraftsmen(null, false);
+        }
+      }).catch(() => fetchCraftsmen(null, false));
+    };
+    loadWithOptionalLocation();
   }, []);
 
-  // Location is NOT requested on mount.
+  // Location is NOT prompted on mount.
   // We only ask when the user explicitly clicks "Near Me".
 
   // Near Me toggle handler
   const handleNearbyToggle = async () => {
     if (nearbyOnly) {
-      // Turn OFF — show all providers
+      // Turn OFF — show all, but keep coords so distanceKm still attaches
       setNearbyOnly(false);
-      fetchCraftsmen();
+      fetchCraftsmen(userCoords, false);
       return;
     }
 
@@ -249,11 +273,16 @@ const ServicesUI = () => {
       setLoading(true);
       setError(null);
       const params = new URLSearchParams();
-      if (coords && nearby) {
+
+      // coords thiyanawa nam (nearbyOnly든 OFF든) API eka distanceKm attach karanawa
+      if (coords) {
         params.set('lat', coords.lat);
         params.set('lng', coords.lng);
+      }
+      if (coords && nearby) {
         params.set('nearbyOnly', 'true');
       }
+
       const response = await fetch(`/api/craftsmen?${params}`);
       const data = await response.json();
       if (response.ok && data.success) {
@@ -897,28 +926,40 @@ const ServicesUI = () => {
               <div className="space-y-4">
                 {(() => {
                 // When nearbyOnly is ON — API already filtered, all results are nearby
-                // When OFF — split by distance client-side (providers who have location set)
-                const nearby = (!nearbyOnly && locationStatus === 'granted' && userCoords)
-                  ? sortedCraftsmen.filter(c => {
-                      const [lng, lat] = c.location?.coordinates || [];
-                      return c.locationEnabled && lat && lng && getDistanceKm(userCoords.lat, userCoords.lng, lat, lng) <= NEARBY_KM;
-                    })
-                  : nearbyOnly ? sortedCraftsmen : [];
+                // When OFF — split by distanceKm (API attached) or haversine fallback
+                const getKm = (c) => {
+                  if (typeof c.distanceKm === 'number') return c.distanceKm;
+                  if (!userCoords || !c.locationEnabled) return Infinity;
+                  const [cLng, cLat] = c.location?.coordinates || [];
+                  if (!cLat || !cLng || (cLat === 0 && cLng === 0)) return Infinity;
+                  return getDistanceKm(userCoords.lat, userCoords.lng, cLat, cLng);
+                };
+
+                const nearby = nearbyOnly
+                  ? sortedCraftsmen
+                  : (locationStatus === 'granted' || userCoords)
+                  ? sortedCraftsmen.filter(c => c.locationEnabled && getKm(c) <= NEARBY_KM)
+                  : [];
 
                 const others = nearbyOnly
-                  ? [] // all already shown above
-                  : (!nearbyOnly && locationStatus === 'granted' && userCoords)
-                  ? sortedCraftsmen.filter(c => {
-                      const [lng, lat] = c.location?.coordinates || [];
-                      return !c.locationEnabled || !lat || !lng || getDistanceKm(userCoords.lat, userCoords.lng, lat, lng) > NEARBY_KM;
-                    })
+                  ? []
+                  : (locationStatus === 'granted' || userCoords)
+                  ? sortedCraftsmen.filter(c => !c.locationEnabled || getKm(c) > NEARBY_KM)
                   : sortedCraftsmen;
 
                 const getDistLabel = (c) => {
-                  if (!userCoords || !c.location?.coordinates?.length) return null;
-                  const [lng, lat] = c.location.coordinates;
-                  if (!lat || !lng) return null;
-                  const km = getDistanceKm(userCoords.lat, userCoords.lng, lat, lng);
+                  // Priority 1: API eken distanceKm attach wela thiyanawa nam direct use kara
+                  // (Near Me ON/OFF dekeditama work karanawa)
+                  if (typeof c.distanceKm === 'number') {
+                    return c.distanceKm < 1
+                      ? `${Math.round(c.distanceKm * 1000)}m`
+                      : `${c.distanceKm.toFixed(1)}km`;
+                  }
+                  // Priority 2: userCoords inna + locationEnabled + [0,0] nove valid coords
+                  if (!userCoords || !c.locationEnabled) return null;
+                  const [cLng, cLat] = c.location?.coordinates || [];
+                  if (!cLat || !cLng || (cLat === 0 && cLng === 0)) return null;
+                  const km = getDistanceKm(userCoords.lat, userCoords.lng, cLat, cLng);
                   return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
                 };
 
