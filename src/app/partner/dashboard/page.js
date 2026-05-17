@@ -52,6 +52,8 @@ function LocationToggle() {
   // ── Start / stop interval based on 'enabled' ─────────────────
   useEffect(() => {
     if (enabled) {
+      // ✅ Immediately push GPS — 30s wait ekak na
+      pushLocation();
       // ✅ Interval start — hama 30s kata GPS push
       intervalRef.current = setInterval(pushLocation, 30_000);
     } else {
