@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import {
   CheckCircle2, XCircle, Clock, Loader2, CalendarDays,
   MapPin, Phone, Briefcase, ChevronDown, ChevronUp,
-  AlertCircle, PlayCircle, BadgeCheck, User, RefreshCw
+  AlertCircle, PlayCircle, BadgeCheck, User, RefreshCw, Star
 } from 'lucide-react';
+import RatingModal from '@/app/Components/RatingModal';
 
 const STATUS_CONFIG = {
   pending:     { label: 'Pending',     color: 'bg-yellow-100 text-yellow-800 border-yellow-200', dot: 'bg-yellow-400', msg: 'Provider reply එනකල් ඉන්න' },
@@ -18,9 +19,20 @@ const STATUS_CONFIG = {
 
 const FILTER_TABS = ['all', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
-function BookingCard({ booking, isPartner, onStatusUpdate }) {
+// ── Mini star display (rated bookings card header) ──
+function StarDisplay({ rating }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1,2,3,4,5].map(i => (
+        <Star key={i} size={11} className={i <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} />
+      ))}
+    </div>
+  );
+}
+
+function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
   const [expanded, setExpanded] = useState(false);
-  const [acting, setActing] = useState(false);
+  const [acting, setActing]     = useState(false);
   const cfg = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
 
   const handleUpdate = async (newStatus) => {
@@ -30,9 +42,10 @@ function BookingCard({ booking, isPartner, onStatusUpdate }) {
   };
 
   const displayName = isPartner ? booking.customerName : booking.providerName;
-  const displaySub  = isPartner
-    ? `${booking.serviceProfession} · ${booking.serviceCategory}`
-    : `${booking.serviceProfession} · ${booking.serviceCategory}`;
+  const displaySub  = `${booking.serviceProfession} · ${booking.serviceCategory}`;
+
+  const canRate   = !isPartner && booking.status === 'completed' && !booking.rating;
+  const hasRated  = !isPartner && booking.status === 'completed' && booking.rating;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -51,6 +64,14 @@ function BookingCard({ booking, isPartner, onStatusUpdate }) {
               <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
               {cfg.label}
             </span>
+            {/* Already rated */}
+            {hasRated && <StarDisplay rating={booking.rating} />}
+            {/* Rate pending badge */}
+            {canRate && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700 font-medium animate-pulse">
+                Rate කරන්න ⭐
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{displaySub}</p>
           {!isPartner && cfg.msg && (
@@ -76,7 +97,6 @@ function BookingCard({ booking, isPartner, onStatusUpdate }) {
       {expanded && (
         <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            {/* Left info panel */}
             <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                 {isPartner ? 'Customer Info' : 'Provider Info'}
@@ -97,25 +117,17 @@ function BookingCard({ booking, isPartner, onStatusUpdate }) {
               )}
             </div>
 
-            {/* Cost panel */}
             <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cost Estimate</p>
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Daily Rate:</span> LKR {booking.dailyRate?.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Days:</span> {booking.estimatedDays}
-              </p>
+              <p className="text-xs text-gray-600"><span className="font-medium">Daily Rate:</span> LKR {booking.dailyRate?.toLocaleString()}</p>
+              <p className="text-xs text-gray-600"><span className="font-medium">Days:</span> {booking.estimatedDays}</p>
               <p className="text-xs text-gray-600">
                 <span className="font-medium">Est. Total: </span>
-                <span className="text-orange-500 font-bold">
-                  LKR {((booking.dailyRate || 0) * (booking.estimatedDays || 1)).toLocaleString()}
-                </span>
+                <span className="text-orange-500 font-bold">LKR {((booking.dailyRate || 0) * (booking.estimatedDays || 1)).toLocaleString()}</span>
               </p>
             </div>
           </div>
 
-          {/* Job description */}
           <div className="bg-blue-50 rounded-xl p-3">
             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
               {isPartner ? 'Job Description' : 'ඔයා ඉල්ලූ වැඩේ'}
@@ -123,7 +135,6 @@ function BookingCard({ booking, isPartner, onStatusUpdate }) {
             <p className="text-xs text-gray-700">{booking.jobDescription}</p>
           </div>
 
-          {/* Notes */}
           {booking.customerNotes && (
             <div className="bg-orange-50 rounded-xl p-3">
               <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">Customer Notes</p>
@@ -137,47 +148,50 @@ function BookingCard({ booking, isPartner, onStatusUpdate }) {
             </div>
           )}
 
-          {/* Action buttons — partner only */}
+          {/* ── Rate button (customer, completed, not rated) ── */}
+          {canRate && (
+            <button
+              onClick={() => onRateClick(booking)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-yellow-50 border border-yellow-200 text-yellow-700 font-semibold text-sm hover:bg-yellow-100 transition"
+            >
+              <Star size={16} className="fill-yellow-400 text-yellow-400" />
+              Provider ට Rating දෙන්න
+            </button>
+          )}
+
+          {/* Already rated — show stars */}
+          {hasRated && (
+            <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-50 border border-green-100">
+              <StarDisplay rating={booking.rating} />
+              <span className="text-xs text-green-700 font-medium">ඔයා දුන් rating</span>
+            </div>
+          )}
+
+          {/* Partner action buttons */}
           {isPartner && (
             <div className="flex gap-2 flex-wrap pt-1">
               {booking.status === 'pending' && (
                 <>
-                  <button
-                    onClick={() => handleUpdate('confirmed')}
-                    disabled={acting}
-                    className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition"
-                  >
-                    {acting ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                    Accept
+                  <button onClick={() => handleUpdate('confirmed')} disabled={acting}
+                    className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition">
+                    {acting ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Accept
                   </button>
-                  <button
-                    onClick={() => handleUpdate('cancelled')}
-                    disabled={acting}
-                    className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition"
-                  >
-                    {acting ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
-                    Reject
+                  <button onClick={() => handleUpdate('cancelled')} disabled={acting}
+                    className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition">
+                    {acting ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Reject
                   </button>
                 </>
               )}
               {booking.status === 'confirmed' && (
-                <button
-                  onClick={() => handleUpdate('in_progress')}
-                  disabled={acting}
-                  className="flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition"
-                >
-                  {acting ? <Loader2 size={12} className="animate-spin" /> : <PlayCircle size={12} />}
-                  Mark as Started
+                <button onClick={() => handleUpdate('in_progress')} disabled={acting}
+                  className="flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition">
+                  {acting ? <Loader2 size={12} className="animate-spin" /> : <PlayCircle size={12} />} Mark as Started
                 </button>
               )}
               {booking.status === 'in_progress' && (
-                <button
-                  onClick={() => handleUpdate('completed')}
-                  disabled={acting}
-                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition"
-                >
-                  {acting ? <Loader2 size={12} className="animate-spin" /> : <BadgeCheck size={12} />}
-                  Mark Complete
+                <button onClick={() => handleUpdate('completed')} disabled={acting}
+                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-semibold transition">
+                  {acting ? <Loader2 size={12} className="animate-spin" /> : <BadgeCheck size={12} />} Mark Complete
                 </button>
               )}
               {(booking.status === 'completed' || booking.status === 'cancelled') && (
@@ -199,13 +213,16 @@ export default function BookingsDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [role, setRole]               = useState(null); // 'partner' | 'customer'
-  const [activeTab, setActiveTab]     = useState('received'); // 'received' | 'sent'
+  const [role, setRole]               = useState(null);
+  const [activeTab, setActiveTab]     = useState('received');
   const [receivedBookings, setReceived] = useState([]);
   const [sentBookings, setSent]       = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [filter, setFilter]           = useState('all');
+
+  // ── Rating Modal state ──
+  const [ratingBooking, setRatingBooking] = useState(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/');
@@ -216,29 +233,36 @@ export default function BookingsDashboard() {
     setLoading(true);
     setError('');
     try {
-      // Role detect
       const roleRes  = await fetch('/api/user-role');
       const roleData = await roleRes.json();
       const userRole = roleData.role || 'customer';
       setRole(userRole);
 
-      // Fetch both in parallel if partner, else only customer bookings
       const [sentRes, receivedRes] = await Promise.all([
         fetch('/api/bookings'),
         userRole === 'partner' ? fetch('/api/partner/bookings') : Promise.resolve(null),
       ]);
 
       const sentData = await sentRes.json();
-      if (sentData.success) setSent(sentData.bookings);
+      if (sentData.success) {
+        setSent(sentData.bookings);
+
+        // ── Auto-popup: load වෙද්දිම unrated completed booking
+        //    එකක් තිබේ නම් modal auto-open ──
+        if (userRole !== 'partner') {
+          const firstUnrated = sentData.bookings.find(
+            b => b.status === 'completed' && !b.rating
+          );
+          if (firstUnrated) setRatingBooking(firstUnrated);
+        }
+      }
 
       if (receivedRes) {
         const recData = await receivedRes.json();
         if (recData.success) setReceived(recData.bookings);
       }
 
-      // Default tab — partner sees received first, customer sees sent
       setActiveTab(userRole === 'partner' ? 'received' : 'sent');
-
     } catch {
       setError('Load karanna bari una. Refresh karanna.');
     } finally {
@@ -265,15 +289,20 @@ export default function BookingsDashboard() {
     }
   }, []);
 
+  // Rating complete — local state update
+  const handleRated = useCallback((bookingId, star) => {
+    setSent(prev => prev.map(b => b._id === bookingId ? { ...b, rating: star } : b));
+  }, []);
+
   const activeBookings = activeTab === 'received' ? receivedBookings : sentBookings;
   const filtered = filter === 'all' ? activeBookings : activeBookings.filter(b => b.status === filter);
   const counts = activeBookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
 
   const statKeys = [
-    { key: 'pending',     label: 'Pending',   Icon: Clock,        color: 'text-yellow-500' },
-    { key: 'confirmed',   label: 'Confirmed',  Icon: BadgeCheck,   color: 'text-blue-500'   },
-    { key: 'in_progress', label: 'Active',     Icon: PlayCircle,   color: 'text-purple-500' },
-    { key: 'completed',   label: 'Done',       Icon: CheckCircle2, color: 'text-green-500'  },
+    { key: 'pending',     label: 'Pending',  Icon: Clock,        color: 'text-yellow-500' },
+    { key: 'confirmed',   label: 'Confirmed', Icon: BadgeCheck,   color: 'text-blue-500'   },
+    { key: 'in_progress', label: 'Active',    Icon: PlayCircle,   color: 'text-purple-500' },
+    { key: 'completed',   label: 'Done',      Icon: CheckCircle2, color: 'text-green-500'  },
   ];
 
   if (status === 'loading' || loading) {
@@ -289,6 +318,19 @@ export default function BookingsDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* ── Rating Modal ── */}
+      {ratingBooking && (
+        <RatingModal
+          booking={ratingBooking}
+          onClose={() => setRatingBooking(null)}
+          onRated={(bookingId, star) => {
+            handleRated(bookingId, star);
+            setRatingBooking(null);
+          }}
+        />
+      )}
+
       {/* Sticky header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
@@ -315,7 +357,6 @@ export default function BookingsDashboard() {
 
       <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
 
-        {/* Tabs — show both only if partner */}
         {role === 'partner' && (
           <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
             <button
@@ -333,7 +374,6 @@ export default function BookingsDashboard() {
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-2">
           {statKeys.map(({ key, label, Icon, color }) => (
             <div key={key} className="bg-white rounded-xl border border-gray-200 p-3 text-center">
@@ -344,7 +384,6 @@ export default function BookingsDashboard() {
           ))}
         </div>
 
-        {/* Filter chips */}
         <div className="flex gap-2 overflow-x-auto pb-1">
           {FILTER_TABS.map(f => (
             <button
@@ -363,14 +402,12 @@ export default function BookingsDashboard() {
           ))}
         </div>
 
-        {/* Error */}
         {error && (
           <div className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 rounded-xl px-4 py-3 text-sm">
             <AlertCircle size={15} /> {error}
           </div>
         )}
 
-        {/* Empty state */}
         {filtered.length === 0 && !error && (
           <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center">
             <div className="w-14 h-14 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -395,7 +432,6 @@ export default function BookingsDashboard() {
           </div>
         )}
 
-        {/* Booking cards */}
         <div className="space-y-2.5">
           {filtered.map(booking => (
             <BookingCard
@@ -403,6 +439,7 @@ export default function BookingsDashboard() {
               booking={booking}
               isPartner={activeTab === 'received'}
               onStatusUpdate={handleStatusUpdate}
+              onRateClick={setRatingBooking}
             />
           ))}
         </div>

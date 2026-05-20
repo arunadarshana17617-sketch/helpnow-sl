@@ -377,21 +377,15 @@ const ServicesUI = () => {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 overflow-x-hidden">
       {/* Navigation Bar */}
-      <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
-        scrolled ? 'bg-white/95 backdrop-blur-md shadow-lg py-2' : 'bg-transparent backdrop-blur-sm py-4'
-      }`}>
+      <nav className="fixed top-0 w-full z-50 bg-white shadow-md py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-              <div className={`p-2 rounded-lg text-white transform hover:rotate-12 transition-transform ${
-                scrolled ? 'bg-blue-600' : 'bg-blue-600/90'
-              }`}>
+              <div className="p-2 rounded-lg text-white bg-blue-600 transform hover:rotate-12 transition-transform">
                 <Wrench size={24} />
               </div>
-              <span className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
-                scrolled ? 'text-blue-900' : 'text-white'
-              }`}>
+              <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-blue-900">
                 HelpNow <span className="text-orange-500">SL</span>
               </span>
             </Link>
@@ -402,25 +396,17 @@ const ServicesUI = () => {
                 <Link
                   key={item}
                   href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
-                  className={`font-semibold transition relative group ${
-                    scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-orange-300'
-                  }`}
+                  className="font-semibold transition relative group text-gray-700 hover:text-blue-600"
                 >
                   {item}
-                  <span className={`absolute -bottom-1 left-0 w-0 h-0.5 group-hover:w-full transition-all duration-300 ${
-                    scrolled ? 'bg-blue-600' : 'bg-orange-400'
-                  }`}></span>
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
                 </Link>
               ))}
 
               {/* Join as Pro Button */}
               <button
                 onClick={() => router.push('/partner')}
-                className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${
-                  scrolled
-                    ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                    : 'bg-white text-blue-900 hover:bg-gray-100'
-                }`}
+                className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white"
               >
                 <Briefcase size={18} />
                 Join as Pro
@@ -439,7 +425,7 @@ const ServicesUI = () => {
                         {session.user?.name?.[0]?.toUpperCase()}
                       </div>
                     )}
-                    <span className={`hidden lg:inline font-medium ${scrolled ? 'text-gray-700' : 'text-white'}`}>
+                    <span className="hidden lg:inline font-medium text-gray-700">
                       {session.user?.name?.split(' ')[0]}
                     </span>
                   </button>
@@ -494,9 +480,7 @@ const ServicesUI = () => {
               ) : (
                 <button
                   onClick={() => signIn('google')}
-                  className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${
-                    scrolled ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-white text-blue-900 hover:bg-gray-100'
-                  }`}
+                  className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   Login / Sign Up
                 </button>
@@ -507,9 +491,7 @@ const ServicesUI = () => {
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`p-2 rounded-lg transition-colors ${
-                  scrolled ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white'
-                }`}
+                className="p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-700"
                 aria-label="Toggle menu"
               >
                 {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -610,92 +592,40 @@ const ServicesUI = () => {
         )}
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-16 px-4 sm:px-6 overflow-hidden bg-gradient-to-r from-blue-900 to-blue-800">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-orange-500 rounded-full blur-3xl"></div>
-        </div>
-
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 mb-6">
-              <Award size={18} className="text-orange-400" />
-              <span className="text-sm font-semibold">{totalCraftsmen}+ Professionals Available</span>
+      {/* Search & Stats Bar */}
+      <div className="pt-24 pb-4 px-4 sm:px-6 bg-white border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex-1 flex items-center bg-gray-100 rounded-xl px-4 py-3 w-full">
+            <Search className="text-gray-400 mr-3 flex-shrink-0" size={18} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, profession, or skill..."
+              className="w-full bg-transparent outline-none text-gray-700 placeholder-gray-400 text-sm font-medium"
+            />
+          </div>
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+              <Users size={15} className="text-blue-500" />
+              <span className="font-semibold">{totalCraftsmen}</span>
+              <span>Total</span>
             </div>
-
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black mb-6 text-white">
-              Find Skilled <span className="text-orange-400">Craftsmen</span> Near You
-            </h1>
-            <p className="text-xl text-blue-100 max-w-3xl mx-auto mb-8">
-              Browse through our list of professionals. Check ratings, reviews, and availability to find the perfect match for your project.
-            </p>
-
-            <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-md p-2 rounded-2xl border border-white/20 shadow-2xl">
-              <div className="flex flex-col sm:flex-row items-stretch gap-2">
-                <div className="flex-1 flex items-center px-4 py-3 bg-white/10 rounded-xl">
-                  <Search className="text-orange-400 mr-3 flex-shrink-0" size={20} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by name, profession, or skill..."
-                    className="w-full bg-transparent outline-none font-medium text-white placeholder-gray-300"
-                  />
-                </div>
-                <button className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-                  <span>Search</span>
-                  <ChevronRight size={20} />
-                </button>
-              </div>
+            <div className="w-px h-4 bg-gray-200"></div>
+            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+              <Star size={15} className="text-yellow-500 fill-current" />
+              <span className="font-semibold">{verifiedCount}</span>
+              <span>Verified</span>
             </div>
-
-            <div className="flex flex-wrap justify-center items-center gap-6 mt-8 text-white">
-              <div className="flex items-center gap-2">
-                <div className="bg-green-500/20 p-2 rounded-lg">
-                  <Users size={18} className="text-green-400" />
-                </div>
-                <span className="text-sm sm:text-base">{totalCraftsmen} Total</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="bg-yellow-500/20 p-2 rounded-lg">
-                  <Star size={18} className="text-yellow-400 fill-current" />
-                </div>
-                <span className="text-sm sm:text-base">{verifiedCount} Verified</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="bg-blue-500/20 p-2 rounded-lg">
-                  <Clock size={18} className="text-blue-400" />
-                </div>
-                <span className="text-sm sm:text-base">{pendingCount} Pending</span>
-              </div>
+            <div className="w-px h-4 bg-gray-200"></div>
+            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+              <Clock size={15} className="text-orange-400" />
+              <span className="font-semibold">{pendingCount}</span>
+              <span>Pending</span>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Join as Pro Banner */}
-      <section className="py-12 bg-gradient-to-r from-orange-500 to-orange-600 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 mb-4">
-            <Briefcase size={18} />
-            <span className="text-sm font-semibold">Are you a skilled professional?</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
-            Join HelpNow SL Today
-          </h2>
-          <p className="text-orange-100 mb-4 max-w-2xl mx-auto">
-            Connect with thousands of customers looking for your expertise. Get verified and start earning.
-          </p>
-          <button
-            onClick={() => router.push('/partner')}
-            className="bg-white text-orange-600 hover:bg-orange-50 font-bold py-3 px-6 rounded-full transition-all shadow-lg hover:shadow-xl inline-flex items-center gap-2"
-          >
-            <span>Become a Partner</span>
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </section>
+      </div>
 
       {/* Main Content */}
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto">

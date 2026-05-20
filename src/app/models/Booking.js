@@ -53,6 +53,18 @@ const BookingSchema = new mongoose.Schema({
   customerNotes: String,
   providerNotes: String,
 
+  // ⭐ Rating — customer දෙන rating (completed වුනාට පස්සේ විතරයි)
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: null,
+  },
+  ratedAt: {
+    type: Date,
+    default: null,
+  },
+
 }, {
   timestamps: true,
   collection: 'bookings'

@@ -8,6 +8,41 @@ import {
   TrendingUp, BadgeCheck, PlayCircle, AlertCircle
 } from 'lucide-react';
 
+// ⭐ Visual star display component
+function StarRatingDisplay({ rating, totalReviews }) {
+  const rounded = Math.round(rating * 2) / 2; // 0.5 steps
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map(i => {
+          const full = i <= Math.floor(rounded);
+          const half = !full && i === Math.ceil(rounded) && rounded % 1 !== 0;
+          return (
+            <div key={i} className="relative w-4 h-4">
+              {/* Empty star */}
+              <Star size={16} className="text-gray-200 absolute inset-0" />
+              {/* Full star */}
+              {full && <Star size={16} className="fill-yellow-400 text-yellow-400 absolute inset-0" />}
+              {/* Half star */}
+              {half && (
+                <div className="absolute inset-0 overflow-hidden w-[50%]">
+                  <Star size={16} className="fill-yellow-400 text-yellow-400" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <span className="text-sm font-semibold text-gray-800">
+        {rating > 0 ? rating.toFixed(1) : '—'}
+      </span>
+      {totalReviews > 0 && (
+        <span className="text-xs text-gray-400">({totalReviews} review{totalReviews !== 1 ? 's' : ''})</span>
+      )}
+    </div>
+  );
+}
+
 const ProviderDetailPage = ({ params }) => {
   const { id } = React.use(params);
   const [provider, setProvider] = useState(null);
@@ -85,6 +120,13 @@ const ProviderDetailPage = ({ params }) => {
     rejected: 'bg-red-100 text-red-700 border-red-200',
   };
 
+  // Overall provider rating (all services average)
+  const ratedServices = provider.services?.filter(s => s.rating > 0) || [];
+  const overallRating = ratedServices.length > 0
+    ? ratedServices.reduce((sum, s) => sum + s.rating, 0) / ratedServices.length
+    : 0;
+  const totalReviews = provider.services?.reduce((sum, s) => sum + (s.totalReviews || 0), 0) || 0;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -115,7 +157,15 @@ const ProviderDetailPage = ({ params }) => {
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-gray-900">{provider.fullName}</h1>
-              <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
+
+              {/* ⭐ Overall rating — profile card එකේ */}
+              {totalReviews > 0 && (
+                <div className="mt-1 mb-2">
+                  <StarRatingDisplay rating={Math.round(overallRating * 10) / 10} totalReviews={totalReviews} />
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
                 <span className="flex items-center gap-1.5"><Mail size={14} />{provider.email}</span>
                 <span className="flex items-center gap-1.5"><Phone size={14} />{provider.phone}</span>
                 <span className="flex items-center gap-1.5"><MapPin size={14} />{provider.city}, {provider.district}</span>
@@ -143,21 +193,19 @@ const ProviderDetailPage = ({ params }) => {
           </div>
         </div>
 
-        {/* ── EARNINGS SECTION ── */}
+        {/* EARNINGS SECTION */}
         {earnings && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
               <TrendingUp size={20} className="text-green-500" />
               Sales & Earnings Overview
             </h2>
-
-            {/* Stats grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
               {[
-                { label: 'Total Earned',  value: fmt(earnings.stats?.totalEarnings),  color: 'text-green-600',  bg: 'bg-green-50',  icon: BadgeCheck },
-                { label: 'Active Jobs',   value: fmt(earnings.stats?.activeEarnings),  color: 'text-purple-600', bg: 'bg-purple-50', icon: PlayCircle  },
-                { label: 'Waiting',       value: fmt(earnings.stats?.pendingEarnings), color: 'text-yellow-600', bg: 'bg-yellow-50', icon: Clock       },
-                { label: 'Completed',     value: `${earnings.stats?.totalJobs} jobs`,  color: 'text-blue-600',   bg: 'bg-blue-50',   icon: CheckCircle2},
+                { label: 'Total Earned',  value: fmt(earnings.stats?.totalEarnings),  color: 'text-green-600',  bg: 'bg-green-50',  icon: BadgeCheck   },
+                { label: 'Active Jobs',   value: fmt(earnings.stats?.activeEarnings),  color: 'text-purple-600', bg: 'bg-purple-50', icon: PlayCircle   },
+                { label: 'Waiting',       value: fmt(earnings.stats?.pendingEarnings), color: 'text-yellow-600', bg: 'bg-yellow-50', icon: Clock        },
+                { label: 'Completed',     value: `${earnings.stats?.totalJobs} jobs`,  color: 'text-blue-600',   bg: 'bg-blue-50',   icon: CheckCircle2 },
               ].map(({ label, value, color, bg, icon: Icon }) => (
                 <div key={label} className={`${bg} rounded-xl p-4`}>
                   <div className="flex items-center gap-2 mb-2">
@@ -169,7 +217,6 @@ const ProviderDetailPage = ({ params }) => {
               ))}
             </div>
 
-            {/* Monthly bar chart */}
             {earnings.monthlyData && Object.keys(earnings.monthlyData).length > 0 && (
               <div className="mb-5">
                 <p className="text-sm font-semibold text-gray-700 mb-3">Monthly Earnings — Last 6 Months</p>
@@ -199,7 +246,6 @@ const ProviderDetailPage = ({ params }) => {
               </div>
             )}
 
-            {/* Recent completed jobs */}
             {earnings.recentCompleted?.length > 0 && (
               <div>
                 <p className="text-sm font-semibold text-gray-700 mb-3">Recent Completed Jobs</p>
@@ -261,7 +307,7 @@ const ProviderDetailPage = ({ params }) => {
           </div>
         </div>
 
-        {/* Services */}
+        {/* Services — with visual star ratings */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Briefcase size={20} className="text-orange-500" />
@@ -281,7 +327,20 @@ const ProviderDetailPage = ({ params }) => {
                     </div>
                   </div>
                   <p className="text-orange-500 font-medium">{service.profession}</p>
+
+                  {/* ⭐ Per-service star rating */}
+                  <div className="mt-1.5">
+                    {service.rating > 0 ? (
+                      <StarRatingDisplay rating={service.rating} totalReviews={service.totalReviews || 0} />
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {[1,2,3,4,5].map(i => <Star key={i} size={14} className="text-gray-200" />)}
+                        <span className="text-xs text-gray-400">No ratings yet</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
                 <div className="flex gap-2">
                   {service.verificationStatus === 'pending' && (
                     <>
@@ -309,12 +368,14 @@ const ProviderDetailPage = ({ params }) => {
                   )}
                 </div>
               </div>
+
+              {/* Stats grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                 {[
                   { label: 'Experience', value: service.experience },
                   { label: 'Daily Rate',  value: `LKR ${service.dailyRate?.toLocaleString()}` },
                   { label: 'Total Jobs',  value: service.totalJobs || 0 },
-                  { label: 'Rating',      value: service.rating ? `${service.rating}/5` : 'N/A' },
+                  { label: 'Reviews',     value: service.totalReviews || 0 },
                 ].map(item => (
                   <div key={item.label} className="bg-gray-50 rounded-xl p-3">
                     <p className="text-xs text-gray-500">{item.label}</p>
@@ -322,6 +383,7 @@ const ProviderDetailPage = ({ params }) => {
                   </div>
                 ))}
               </div>
+
               {service.skills?.length > 0 && (
                 <div className="mt-4">
                   <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><Star size={12} /> Skills</p>

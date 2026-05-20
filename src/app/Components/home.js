@@ -520,69 +520,6 @@ const HomeUI = () => {
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-gray-50 to-white px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12 sm:mb-16">
-            <span className="inline-block bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
-              Why Choose Us
-            </span>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-blue-950 mb-4">
-              Your Trusted Service Partner
-            </h2>
-            <p className="text-gray-600 max-w-2xl mx-auto text-lg">
-              We've built a platform that prioritizes safety, skill, and speed above all else. 
-              Here's why thousands of Sri Lankans trust HelpNow SL for their home service needs.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
-            {[
-              { 
-                title: "Verified Professionals", 
-                desc: "Every worker undergoes thorough background checks, identity verification, and practical skill assessments before joining our platform.",
-                icon: <ShieldCheck className="text-blue-600" size={32}/>,
-                color: "blue",
-                stats: "100% Verified"
-              },
-              { 
-                title: "Emergency Support", 
-                desc: "Facing a plumbing leak or electrical failure at midnight? Our 24/7 emergency service connects you with available experts immediately.",
-                icon: <Clock className="text-orange-600" size={32}/>,
-                color: "orange",
-                stats: "24/7 Service"
-              },
-              { 
-                title: "Quality Guaranteed", 
-                desc: "We continuously monitor customer ratings and feedback to ensure consistent quality. Unsatisfied? We'll make it right.",
-                icon: <ThumbsUp className="text-green-600" size={32}/>,
-                color: "green",
-                stats: "4.8 Avg Rating"
-              }
-            ].map((item, idx) => (
-              <div key={idx} className="group relative bg-white rounded-2xl p-6 sm:p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:-translate-y-2">
-                <div className={`w-16 h-16 bg-${item.color}-100 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                  {item.icon}
-                </div>
-                <h3 className="text-xl font-bold text-blue-950 mb-3">{item.title}</h3>
-                <p className="text-gray-600 mb-4 leading-relaxed">{item.desc}</p>
-                <div className={`inline-flex items-center gap-2 text-${item.color}-600 bg-${item.color}-50 px-3 py-1 rounded-full text-sm font-semibold`}>
-                  <CheckCircle2 size={16} />
-                  <span>{item.stats}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Additional Info */}
-          <div className="mt-12 text-center">
-            <p className="text-gray-500 text-sm">
-              *All professionals are insured and bonded for your protection
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* Popular Services */}
       <section className="py-16 sm:py-20 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="text-center mb-12">
@@ -667,6 +604,69 @@ const HomeUI = () => {
           <Link href="/trucks" className="inline-flex items-center gap-2 text-blue-600 hover:text-orange-500 font-semibold transition-colors">
             View All Services <ChevronRight size={18} />
           </Link>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-gray-50 to-white px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12 sm:mb-16">
+            <span className="inline-block bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
+              Why Choose Us
+            </span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-blue-950 mb-4">
+              Your Trusted Service Partner
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto text-lg">
+              We've built a platform that prioritizes safety, skill, and speed above all else. 
+              Here's why thousands of Sri Lankans trust HelpNow SL for their home service needs.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+            {[
+              { 
+                title: "Verified Professionals", 
+                desc: "Every worker undergoes thorough background checks, identity verification, and practical skill assessments before joining our platform.",
+                icon: <ShieldCheck className="text-blue-600" size={32}/>,
+                color: "blue",
+                stats: "100% Verified"
+              },
+              { 
+                title: "Emergency Support", 
+                desc: "Facing a plumbing leak or electrical failure at midnight? Our 24/7 emergency service connects you with available experts immediately.",
+                icon: <Clock className="text-orange-600" size={32}/>,
+                color: "orange",
+                stats: "24/7 Service"
+              },
+              { 
+                title: "Quality Guaranteed", 
+                desc: "We continuously monitor customer ratings and feedback to ensure consistent quality. Unsatisfied? We'll make it right.",
+                icon: <ThumbsUp className="text-green-600" size={32}/>,
+                color: "green",
+                stats: "4.8 Avg Rating"
+              }
+            ].map((item, idx) => (
+              <div key={idx} className="group relative bg-white rounded-2xl p-6 sm:p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:-translate-y-2">
+                <div className={`w-16 h-16 bg-${item.color}-100 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
+                  {item.icon}
+                </div>
+                <h3 className="text-xl font-bold text-blue-950 mb-3">{item.title}</h3>
+                <p className="text-gray-600 mb-4 leading-relaxed">{item.desc}</p>
+                <div className={`inline-flex items-center gap-2 text-${item.color}-600 bg-${item.color}-50 px-3 py-1 rounded-full text-sm font-semibold`}>
+                  <CheckCircle2 size={16} />
+                  <span>{item.stats}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Additional Info */}
+          <div className="mt-12 text-center">
+            <p className="text-gray-500 text-sm">
+              *All professionals are insured and bonded for your protection
+            </p>
+          </div>
         </div>
       </section>
 
