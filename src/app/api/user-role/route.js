@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/app/lib/mongodb';  // ✅ මේක fix කළා
-import ServiceProvider from '@/app/models/ServiceProvider';  // ✅ මේකත්
+import connectDB from '@/app/lib/mongodb';
+import ServiceProvider from '@/app/models/ServiceProvider';
+import Customer from '@/app/models/Customer';
 import { auth } from '@/auth';
 
 export async function GET() {
@@ -16,11 +17,23 @@ export async function GET() {
       email: session.user.email
     }).select('_id');
 
+    if (provider) {
+      return NextResponse.json({
+        role: 'partner',
+        userId: provider._id.toString(),
+      });
+    }
+
+    const customer = await Customer.findOne({
+      email: session.user.email
+    }).select('_id');
+
     return NextResponse.json({
-      role: provider ? 'partner' : 'customer'
+      role: 'customer',
+      userId: customer?._id.toString() || null,
     });
 
   } catch (error) {
-    return NextResponse.json({ role: 'customer' });
+    return NextResponse.json({ role: 'customer', userId: null });
   }
 }

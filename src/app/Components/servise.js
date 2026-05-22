@@ -1,6 +1,7 @@
 ﻿"use client";
 import React, { useState, useEffect } from 'react';
 import BookingModal from './BookingModal';
+import CommentSection from './CommentSection';
 import { useRouter } from 'next/navigation';
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from 'next/image';
@@ -964,7 +965,54 @@ const ServicesUI = () => {
                                     </div>
                                   ) : null}
                                 </div>
-                                <p className="text-orange-600 font-medium mt-1">{service.profession || 'N/A'}</p>
+                                {/* Services Badges — category enum use karanna (clean labels) */}
+                                {(() => {
+                                  const categoryLabels = {
+                                    electrician: 'Electrician',
+                                    plumber: 'Plumber',
+                                    mason: 'Mason',
+                                    carpenter: 'Carpenter',
+                                    painter: 'Painter',
+                                    ac: 'AC Technician',
+                                    gardener: 'Gardener',
+                                  };
+                                  const categoryColors = {
+                                    electrician: 'bg-yellow-50 border-yellow-300 text-yellow-700',
+                                    plumber:     'bg-blue-50 border-blue-300 text-blue-700',
+                                    mason:       'bg-stone-50 border-stone-300 text-stone-700',
+                                    carpenter:   'bg-amber-50 border-amber-300 text-amber-700',
+                                    painter:     'bg-pink-50 border-pink-300 text-pink-700',
+                                    ac:          'bg-cyan-50 border-cyan-300 text-cyan-700',
+                                    gardener:    'bg-green-50 border-green-300 text-green-700',
+                                  };
+                                  const categoryIcons = {
+                                    electrician: '⚡',
+                                    plumber: '💧',
+                                    mason: '🧱',
+                                    carpenter: '🪵',
+                                    painter: '🎨',
+                                    ac: '❄️',
+                                    gardener: '🌿',
+                                  };
+                                  return (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                      {craftsman.services.map((svc, idx) => {
+                                        const label = categoryLabels[svc.category] || svc.category;
+                                        const color = categoryColors[svc.category] || 'bg-gray-50 border-gray-300 text-gray-700';
+                                        const icon = categoryIcons[svc.category] || '🔧';
+                                        return (
+                                          <span
+                                            key={idx}
+                                            className={`inline-flex items-center gap-1 border text-xs px-2.5 py-1 rounded-full font-semibold ${color}`}
+                                          >
+                                            <span>{icon}</span>
+                                            <span>{label}</span>
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()}
 
                                 <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
                                   <div className="flex items-center gap-1">
@@ -1124,6 +1172,9 @@ const ServicesUI = () => {
                               )}
                             </div>
                           </div>
+
+                          {/* Comment Section */}
+                          <CommentSection providerId={craftsman._id} />
                         </div>
                       )}
                     </div>
@@ -1285,7 +1336,12 @@ const ServicesUI = () => {
               )}
               <div>
                 <p className="font-bold text-blue-950 text-base">{contactModal.fullName}</p>
-                <p className="text-orange-600 text-sm font-medium">{getService(contactModal).profession}</p>
+                <p className="text-orange-600 text-sm font-medium">
+                  {contactModal.services?.map(s => ({
+                    electrician:'Electrician', plumber:'Plumber', mason:'Mason',
+                    carpenter:'Carpenter', painter:'Painter', ac:'AC Technician', gardener:'Gardener'
+                  }[s.category] || s.category)).join(' · ')}
+                </p>
                 <div className="flex items-center gap-1 mt-1">
                   <MapPin size={12} className="text-gray-400" />
                   <span className="text-xs text-gray-500">{contactModal.city}, {contactModal.district}</span>
