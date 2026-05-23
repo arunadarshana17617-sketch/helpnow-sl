@@ -411,6 +411,10 @@ export default function CommentSection({ providerId }) {
 
   const handleReact = async (commentId, type) => {
     if (!currentUserId) return;
+    // Find current reaction type BEFORE optimistic update (needed for remove API call)
+    const currentReactionType = comments
+      .find(c => c._id === commentId)
+      ?.reactions?.find(r => r.userId === currentUserId)?.type || null;
     // Optimistic update
     setComments(prev => prev.map(c => {
       if (c._id !== commentId) return c;
@@ -424,17 +428,21 @@ export default function CommentSection({ providerId }) {
       }
       return { ...c, reactions: newReactions };
     }));
-    // API call
-    if (type) {
-      await fetch("/api/comments/react", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId, type }) });
-    } else {
-      // Remove — send current type to toggle off (we just need any valid call)
-      await fetch("/api/comments/react", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId, type: 'like' }) });
+    // API call — always send a valid type
+    // type=null means remove, so send currentReactionType to toggle it off
+    const apiType = type ?? currentReactionType;
+    if (apiType) {
+      await fetch("/api/comments/react", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId, type: apiType }) });
     }
   };
 
   const handleReactReply = async (commentId, replyId, type) => {
     if (!currentUserId) return;
+    // Find current reply reaction BEFORE optimistic update
+    const currentReactionType = comments
+      .find(c => c._id === commentId)
+      ?.replies?.find(r => r._id === replyId)
+      ?.reactions?.find(x => x.userId === currentUserId)?.type || null;
     setComments(prev => prev.map(c => {
       if (c._id !== commentId) return c;
       return {
@@ -452,8 +460,10 @@ export default function CommentSection({ providerId }) {
         })
       };
     }));
-    if (type) {
-      await fetch("/api/comments/react", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId, replyId, type }) });
+    // API call — always send a valid type
+    const apiType = type ?? currentReactionType;
+    if (apiType) {
+      await fetch("/api/comments/react", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId, replyId, type: apiType }) });
     }
   };
 
