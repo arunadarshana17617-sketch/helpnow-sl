@@ -1174,7 +1174,7 @@ const ServicesUI = () => {
                           </div>
 
                           {/* Comment Section */}
-                          <CommentSection providerId={craftsman._id} />
+                          <CommentSection providerId={craftsman._id?.toString()} />
                         </div>
                       )}
                     </div>

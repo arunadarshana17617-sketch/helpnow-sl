@@ -5,6 +5,8 @@ import Comment from '@/app/models/Comment';
 import Customer from '@/app/models/Customer';
 import ServiceProvider from '@/app/models/ServiceProvider';
 
+const VALID_TYPES = ['like', 'love', 'haha', 'wow', 'sad', 'angry'];
+
 async function getUserId(session) {
   if (!session?.user?.email) return null;
   await connectDB();
@@ -15,8 +17,9 @@ async function getUserId(session) {
 }
 
 // POST /api/comments/react
-// Body: { commentId, replyId? }
-// Toggle like — already liked nam remove, නැත්නම් add
+// Body: { commentId, type, replyId? }
+// - Same type again → remove (toggle off)
+// - Different type → switch
 export async function POST(request) {
   try {
     const session = await auth();
@@ -25,33 +28,46 @@ export async function POST(request) {
     const userId = await getUserId(session);
     if (!userId) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
 
-    const { commentId, replyId } = await request.json();
-    if (!commentId) return NextResponse.json({ success: false, error: 'commentId required' }, { status: 400 });
+    const { commentId, type, replyId } = await request.json();
+    if (!commentId || !VALID_TYPES.includes(type)) {
+      return NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 });
+    }
 
     await connectDB();
     const comment = await Comment.findById(commentId);
     if (!comment) return NextResponse.json({ success: false, error: 'Comment not found' }, { status: 404 });
 
-    // ── React on reply ───────────────────────────────────────────
+    function toggleReaction(reactions) {
+      const existing = reactions.findIndex(r => r.userId === userId);
+      if (existing !== -1) {
+        if (reactions[existing].type === type) {
+          // Same type → remove
+          reactions.splice(existing, 1);
+        } else {
+          // Different type → switch
+          reactions[existing].type = type;
+        }
+      } else {
+        reactions.push({ userId, type });
+      }
+      return reactions;
+    }
+
     if (replyId) {
       const reply = comment.replies.id(replyId);
       if (!reply) return NextResponse.json({ success: false, error: 'Reply not found' }, { status: 404 });
-
-      const idx = reply.reactions.indexOf(userId);
-      if (idx === -1) reply.reactions.push(userId);
-      else reply.reactions.splice(idx, 1);
-
+      toggleReaction(reply.reactions);
       await comment.save();
-      return NextResponse.json({ success: true, reactions: reply.reactions });
+      return NextResponse.json({ success: true, reactions: reply.reactions, userReaction: reply.reactions.find(r => r.userId === userId)?.type || null });
     }
 
-    // ── React on comment ─────────────────────────────────────────
-    const idx = comment.reactions.indexOf(userId);
-    if (idx === -1) comment.reactions.push(userId);
-    else comment.reactions.splice(idx, 1);
-
+    toggleReaction(comment.reactions);
     await comment.save();
-    return NextResponse.json({ success: true, reactions: comment.reactions });
+    return NextResponse.json({
+      success: true,
+      reactions: comment.reactions,
+      userReaction: comment.reactions.find(r => r.userId === userId)?.type || null,
+    });
 
   } catch (error) {
     console.error('POST /api/comments/react error:', error);
