@@ -1,5 +1,5 @@
 ﻿"use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -107,7 +107,7 @@ function LocationToggle({ provider, language }) {
 }
 
 // ── Main Component ───────────────────────────────────────────────
-export default function PartnerProfilePage() {
+function PartnerProfilePageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -835,5 +835,18 @@ export default function PartnerProfilePage() {
         </main>
       </div>
     </div>
+  );
+}
+
+// ── Default Export (wrapped in Suspense for useSearchParams) ─────
+export default function PartnerProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-orange-500" />
+      </div>
+    }>
+      <PartnerProfilePageContent />
+    </Suspense>
   );
 }
