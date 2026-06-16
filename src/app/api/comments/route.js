@@ -4,13 +4,13 @@ import connectDB from '@/app/lib/mongodb';
 import Comment from '@/app/models/Comment';
 import Customer from '@/app/models/Customer';
 import ServiceProvider from '@/app/models/ServiceProvider';
+import Notification from '@/app/models/Notification'; 
 
 // Helper: get current user — provider FIRST, then customer
 async function getCurrentUser(session) {
   if (!session?.user?.email) return null;
   await connectDB();
 
-  // Check ServiceProvider first — partner login eke innawa nam eka first catch wenawa
   const provider = await ServiceProvider.findOne({ email: session.user.email }).lean();
   if (provider) {
     return {
@@ -22,7 +22,6 @@ async function getCurrentUser(session) {
     };
   }
 
-  // Then check Customer
   const customer = await Customer.findOne({ email: session.user.email }).lean();
   if (customer) {
     return {
@@ -57,8 +56,6 @@ export async function GET(request) {
 }
 
 // POST /api/comments
-// Body: { providerId, text }          — new comment
-// Body: { providerId, text, commentId } — reply
 export async function POST(request) {
   try {
     const session = await auth();
@@ -76,7 +73,7 @@ export async function POST(request) {
     }
     await connectDB();
 
-    // Reply
+    // ── 1. REPLY TRIGGER ──
     if (commentId) {
       const comment = await Comment.findById(commentId);
       if (!comment) {
@@ -91,10 +88,26 @@ export async function POST(request) {
         reactions: [],
       });
       await comment.save();
+
+      // අලුතින්ම වැටුණු reply එකේ database ID එක ලබාගැනීම
+      const newReply = comment.replies[comment.replies.length - 1];
+
+      // Create Precise Notification Link for Reply [1]
+      if (comment.provider.toString() !== user.id) {
+        await Notification.create({
+          recipient: comment.provider,
+          senderName: user.name,
+          type: 'new_comment',
+          title: 'New Reply on Profile',
+          message: `${user.name} replied to a comment on your profile: "${text.trim()}"`,
+          link: `/partner/profile?commentId=${comment._id}&replyId=${newReply._id}` // ✅ Deep link
+        });
+      }
+
       return NextResponse.json({ success: true, comment: comment.toObject() });
     }
 
-    // New comment
+    // ── 2. NEW COMMENT TRIGGER ──
     const newComment = await Comment.create({
       provider: providerId,
       author: user.id,
@@ -106,6 +119,19 @@ export async function POST(request) {
       reactions: [],
       replies: [],
     });
+
+    // Create Precise Notification Link for Comment [1]
+    if (providerId !== user.id) {
+      await Notification.create({
+        recipient: providerId,
+        senderName: user.name,
+        type: 'new_comment',
+        title: 'New Comment Received',
+        message: `${user.name} left a comment on your profile: "${text.trim()}"`,
+        link: `/partner/profile?commentId=${newComment._id}` // ✅ Deep link
+      });
+    }
+
     return NextResponse.json({ success: true, comment: newComment.toObject() });
 
   } catch (error) {
@@ -115,7 +141,6 @@ export async function POST(request) {
 }
 
 // DELETE /api/comments
-// Body: { commentId, replyId? }
 export async function DELETE(request) {
   try {
     const session = await auth();
@@ -138,10 +163,8 @@ export async function DELETE(request) {
       return NextResponse.json({ success: false, error: 'Comment not found' }, { status: 404 });
     }
 
-    // Page owner = the service provider whose profile this comment is on
     const isPageOwner = comment.provider.toString() === user.id;
 
-    // Delete reply
     if (replyId) {
       const reply = comment.replies.id(replyId);
       if (!reply) {
@@ -156,7 +179,6 @@ export async function DELETE(request) {
       return NextResponse.json({ success: true, message: 'Reply deleted' });
     }
 
-    // Delete comment — author OR page owner
     const isCommentAuthor = comment.author.toString() === user.id;
     if (!isCommentAuthor && !isPageOwner) {
       return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });

@@ -573,7 +573,7 @@ const PartnerRegister = () => {
           value={formData.fullName}
           onChange={handleInputChange}
           placeholder="As per NIC"
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
         />
       </div>
       
@@ -593,13 +593,13 @@ const PartnerRegister = () => {
               readOnly={!!session?.user?.email}
               placeholder="e.g. yourname@gmail.com"
               className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                session?.user?.email ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed' : 'border-gray-300'
+                session?.user?.email ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed' : 'border-gray-300 text-gray-900 placeholder-gray-400'
               }`}
             />
           </div>
           {session?.user?.email ? (
             <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
-              <CheckCircle2 size={12} /> Google account email use karanawa
+              <CheckCircle2 size={12} /> Google account email use 
             </p>
           ) : (
             <p className="text-xs text-blue-500 mt-1.5 flex items-center gap-1">
@@ -620,7 +620,7 @@ const PartnerRegister = () => {
               value={formData.phone}
               onChange={handleInputChange}
               placeholder="07X XXX XXXX"
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
         </div>
@@ -685,7 +685,7 @@ const PartnerRegister = () => {
                 value={formData.whatsapp}
                 onChange={handleInputChange}
                 placeholder="07X XXX XXXX"
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
             <p className="text-xs text-gray-500 mt-1.5">
@@ -724,7 +724,7 @@ const PartnerRegister = () => {
               value={formData.password}
               onChange={handleInputChange}
               placeholder="••••••••"
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <button
               type="button"
@@ -749,7 +749,7 @@ const PartnerRegister = () => {
               value={formData.confirmPassword}
               onChange={handleInputChange}
               placeholder="••••••••"
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <button
               type="button"
@@ -866,7 +866,7 @@ const PartnerRegister = () => {
           value={formData.profession}
           onChange={handleInputChange}
           placeholder="e.g., Master Electrician, Plumbing Expert"
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
         />
       </div>
       
@@ -880,7 +880,7 @@ const PartnerRegister = () => {
             name="experience"
             value={formData.experience}
             onChange={handleInputChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
           >
             <option value="">Select experience</option>
             {experienceLevels.map((level) => (
@@ -901,7 +901,7 @@ const PartnerRegister = () => {
             placeholder="e.g., 2500"
             min="500"
             step="100"
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
         </div>
       </div>
@@ -918,7 +918,7 @@ const PartnerRegister = () => {
             onChange={(e) => setSkillInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
             placeholder="Add a skill (e.g., Wiring)"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           <button
             type="button"
@@ -955,7 +955,7 @@ const PartnerRegister = () => {
           onChange={handleInputChange}
           rows="4"
           placeholder="Tell customers about your experience, specializations, and what makes you unique..."
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
         ></textarea>
       </div>
       
@@ -1015,7 +1015,7 @@ const PartnerRegister = () => {
             name="district"
             value={formData.district}
             onChange={handleInputChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
           >
             <option value="">Select district</option>
             {Object.keys(districtCityData).sort().map((district) => (
@@ -1043,22 +1043,41 @@ const PartnerRegister = () => {
               onFocus={() => setShowCitySuggestions(true)}
               placeholder={formData.district ? "Type to search cities..." : "Select a district first"}
               disabled={!formData.district}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
             />
           </div>
           
           {/* City Suggestions Dropdown */}
           {showCitySuggestions && formData.district && getFilteredCities().length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-              {getFilteredCities().map((city) => (
+            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+              <div className="sticky top-0 bg-gray-50 border-b border-gray-100 px-4 py-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {getFilteredCities().length} cities in {formData.district}
+                </p>
+              </div>
+              {getFilteredCities().map((city, idx) => (
                 <button
                   key={city}
                   type="button"
                   onClick={() => handleCitySelect(city)}
-                  className="w-full text-left px-4 py-2 hover:bg-orange-50 transition flex items-center gap-2"
+                  className={`w-full text-left px-4 py-2.5 transition-colors flex items-center gap-3 group
+                    ${formData.city === city
+                      ? 'bg-orange-50 text-orange-700'
+                      : idx % 2 === 0
+                        ? 'bg-white hover:bg-orange-50'
+                        : 'bg-gray-50 hover:bg-orange-50'
+                    }`}
                 >
-                  <MapPin size={14} className="text-gray-400" />
-                  <span>{city}</span>
+                  <MapPin
+                    size={14}
+                    className={`flex-shrink-0 ${formData.city === city ? 'text-orange-500' : 'text-gray-400 group-hover:text-orange-400'}`}
+                  />
+                  <span className={`text-sm font-medium ${formData.city === city ? 'text-orange-700' : 'text-gray-800'}`}>
+                    {city}
+                  </span>
+                  {formData.city === city && (
+                    <CheckCircle2 size={14} className="ml-auto text-orange-500" />
+                  )}
                 </button>
               ))}
             </div>
@@ -1085,7 +1104,7 @@ const PartnerRegister = () => {
             onChange={(e) => setAreaInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addServiceArea())}
             placeholder="Add an area (e.g., Colombo 03, Dehiwala)"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           <button
             type="button"
@@ -1258,22 +1277,6 @@ const PartnerRegister = () => {
         </div>
       </div>
       
-      {/* Insurance */}
-      <div className="bg-gray-50 p-6 rounded-xl">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            name="insurance"
-            checked={formData.insurance}
-            onChange={handleInputChange}
-            className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-          />
-          <div>
-            <span className="font-semibold text-gray-900">I have professional insurance</span>
-            <p className="text-sm text-gray-600">Check this if you have liability insurance (gets you priority visibility)</p>
-          </div>
-        </label>
-      </div>
       
       {/* Terms */}
       <div className="bg-orange-50 p-6 rounded-xl">

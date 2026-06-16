@@ -13,24 +13,25 @@ import {
 
 // Profile Link Component - Fetches role from API
 function ProfileLink() {
+  const { status } = useSession();
   const [role, setRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (status === 'unauthenticated') { setIsLoading(false); return; }
+    if (status === 'loading') return;
     fetch('/api/user-role')
       .then(r => r.json())
-      .then(d => {
-        setRole(d.role);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setRole('customer');
-        setIsLoading(false);
-      });
-  }, []);
+      .then(d => { setRole(d.role); setIsLoading(false); })
+      .catch(() => { setRole('guest'); setIsLoading(false); });
+  }, [status]);
 
-  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
-  const subtitle = role === 'partner' ? 'Partner profile' : 'View and edit profile';
+  // Not logged in OR no account in DB — hide completely
+  if (status === 'unauthenticated') return null;
+  if (!isLoading && role !== 'partner') return null;
+
+  const href = role === 'partner' ? '/partner/dashboard' : '/customer/profile';
+  const subtitle = role === 'partner' ? 'Partner dashboard' : 'View and edit profile';
 
   if (isLoading) {
     return (
@@ -61,23 +62,24 @@ function ProfileLink() {
 
 // Mobile Profile Link Component - For mobile menu
 function MobileProfileLink({ onNavigate }) {
+  const { status } = useSession();
   const [role, setRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (status === 'unauthenticated') { setIsLoading(false); return; }
+    if (status === 'loading') return;
     fetch('/api/user-role')
       .then(r => r.json())
-      .then(d => {
-        setRole(d.role);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setRole('customer');
-        setIsLoading(false);
-      });
-  }, []);
+      .then(d => { setRole(d.role); setIsLoading(false); })
+      .catch(() => { setRole('guest'); setIsLoading(false); });
+  }, [status]);
 
-  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  // Not logged in OR no account in DB — hide completely
+  if (status === 'unauthenticated') return null;
+  if (!isLoading && role !== 'partner') return null;
+
+  const href = role === 'partner' ? '/partner/dashboard' : '/customer/profile';
   const label = role === 'partner' ? 'Partner Dashboard' : 'My Profile';
 
   if (isLoading) {

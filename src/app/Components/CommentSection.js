@@ -34,7 +34,7 @@ function Avatar({ name, photo, size = "sm" }) {
   const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
   if (photo) return <img src={photo} alt={name} className={`${sz} rounded-full object-cover flex-shrink-0 ring-2 ring-white shadow-sm`} />;
   return (
-    <div className={`${sz} rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold flex-shrink-0 ring-2 ring-white shadow-sm`}>
+    <div className={`${sz} rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold flex-shrink-0 ring-2 ring-white shadow-sm`}>
       {getInitials(name)}
     </div>
   );

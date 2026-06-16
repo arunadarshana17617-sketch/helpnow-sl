@@ -28,10 +28,16 @@ export async function GET() {
       email: session.user.email
     }).select('_id');
 
-    return NextResponse.json({
-      role: 'customer',
-      userId: customer?._id.toString() || null,
-    });
+    // Customer account exists in DB
+    if (customer) {
+      return NextResponse.json({
+        role: 'customer',
+        userId: customer._id.toString(),
+      });
+    }
+
+    // Logged in with Google but no account created in DB yet
+    return NextResponse.json({ role: 'guest', userId: null });
 
   } catch (error) {
     return NextResponse.json({ role: 'customer', userId: null });

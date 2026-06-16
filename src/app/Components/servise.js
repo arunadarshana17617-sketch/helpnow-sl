@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import BookingModal from './BookingModal';
 import CommentSection from './CommentSection';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -60,10 +60,17 @@ const NEARBY_KM = 15;
 
 // Profile Link Component - Fetches role from API
 function ProfileLink() {
+  const { data: session, status } = useSession();
   const [role, setRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (status === 'unauthenticated') {
+      setIsLoading(false);
+      return;
+    }
+    if (status === 'loading') return;
+
     fetch('/api/user-role')
       .then(r => r.json())
       .then(d => {
@@ -74,10 +81,13 @@ function ProfileLink() {
         setRole('customer');
         setIsLoading(false);
       });
-  }, []);
+  }, [status]);
 
-  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
-  const subtitle = role === 'partner' ? 'Partner profile' : 'View and edit profile';
+  if (status === 'unauthenticated') return null;
+  if (!isLoading && role !== 'partner') return null;
+
+  const href = role === 'partner' ? '/partner/dashboard' : '/customer/profile';
+  const subtitle = role === 'partner' ? 'Partner dashboard' : 'View and edit profile';
 
   if (isLoading) {
     return (
@@ -108,10 +118,17 @@ function ProfileLink() {
 
 // Mobile Profile Link Component - For mobile menu
 function MobileProfileLink({ onNavigate }) {
+  const { data: session, status } = useSession();
   const [role, setRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (status === 'unauthenticated') {
+      setIsLoading(false);
+      return;
+    }
+    if (status === 'loading') return;
+
     fetch('/api/user-role')
       .then(r => r.json())
       .then(d => {
@@ -122,9 +139,12 @@ function MobileProfileLink({ onNavigate }) {
         setRole('customer');
         setIsLoading(false);
       });
-  }, []);
+  }, [status]);
 
-  const href = role === 'partner' ? '/partner/profile' : '/customer/profile';
+  if (status === 'unauthenticated') return null;
+  if (!isLoading && role !== 'partner') return null;
+
+  const href = role === 'partner' ? '/partner/dashboard' : '/customer/profile';
   const label = role === 'partner' ? 'Partner Dashboard' : 'My Profile';
 
   if (isLoading) {
@@ -151,6 +171,7 @@ function MobileProfileLink({ onNavigate }) {
 
 const ServicesUI = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -172,6 +193,42 @@ const ServicesUI = () => {
   const [locationStatus, setLocationStatus] = useState('idle'); // idle | loading | granted | denied
   const [nearbyOnly, setNearbyOnly] = useState(false); // Near Me toggle
   const [nearbyLoading, setNearbyLoading] = useState(false);
+
+  // Notification search params reading
+  const urlProviderId = searchParams.get('providerId');
+  const urlCommentId = searchParams.get('commentId');
+  const urlReplyId = searchParams.get('replyId');
+
+  // 1. Live Notification trigger: Auto-expand & Reset filters so targets are guaranteed to display [1]
+  useEffect(() => {
+    if (urlProviderId && craftsmen.length > 0) {
+      const targetCraftsman = craftsmen.find(c => c._id === urlProviderId);
+      if (targetCraftsman) {
+        setSelectedCategory('all');
+        setSearchQuery('');
+        setEmergencyOnly(false);
+        setExpandedCraftsman(urlProviderId);
+      }
+    }
+  }, [urlProviderId, craftsmen]);
+
+  // 2. Live Notification trigger: Smooth scroll & highlight comment element inside the section [2]
+  useEffect(() => {
+    if (urlCommentId && expandedCraftsman === urlProviderId && craftsmen.length > 0) {
+      setTimeout(() => {
+        const targetId = urlReplyId ? `reply-${urlReplyId}` : `comment-${urlCommentId}`;
+        const element = document.getElementById(targetId);
+        
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-4', 'ring-orange-500', 'ring-offset-2', 'transition-all', 'duration-500');
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-orange-500', 'ring-offset-2');
+          }, 3500);
+        }
+      }, 1000);
+    }
+  }, [urlCommentId, urlReplyId, expandedCraftsman, urlProviderId, craftsmen]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -200,8 +257,6 @@ const ServicesUI = () => {
   }, []);
 
   useEffect(() => {
-    // Mount time: permission already granted nam silently GPS grab karala coords ekkat fetch
-    // Denied/prompt nam normal load — user ku prompt dakkenna ne
     const loadWithOptionalLocation = () => {
       if (!navigator.geolocation || !navigator.permissions) {
         fetchCraftsmen(null, false);
@@ -227,30 +282,20 @@ const ServicesUI = () => {
     loadWithOptionalLocation();
   }, []);
 
-  // Location is NOT prompted on mount.
-  // We only ask when the user explicitly clicks "Near Me".
-
-  // Near Me toggle handler
   const handleNearbyToggle = async () => {
     if (nearbyOnly) {
-      // Turn OFF — show all, but keep coords so distanceKm still attaches
       setNearbyOnly(false);
       fetchCraftsmen(userCoords, false);
       return;
     }
-
-    // If previously denied, show the banner again so user knows what to do
     if (locationStatus === 'denied') {
       setLocationStatus('denied');
       return;
     }
-
     setNearbyLoading(true);
 
     try {
       let coords = userCoords;
-
-      // Request location now (user clicked the button, so this is intentional)
       if (!coords) {
         const pos = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
@@ -259,7 +304,6 @@ const ServicesUI = () => {
         setUserCoords(coords);
         setLocationStatus('granted');
       }
-
       setNearbyOnly(true);
       await fetchCraftsmen(coords, true);
     } catch {
@@ -275,7 +319,6 @@ const ServicesUI = () => {
       setError(null);
       const params = new URLSearchParams();
 
-      // coords thiyanawa nam (nearbyOnly든 OFF든) API eka distanceKm attach karanawa
       if (coords) {
         params.set('lat', coords.lat);
         params.set('lng', coords.lng);
@@ -314,15 +357,27 @@ const ServicesUI = () => {
     { id: 'gardener', name: 'Gardeners', icon: <Leaf size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'gardener')).length },
   ];
 
+  // ── FILTER DIRECTIVE (Robust owner & admin logic synchronization) ──
   const filteredCraftsmen = craftsmen.filter(c => {
     const service = getService(c);
-    if (!showPending && service.verificationStatus !== 'verified') return false;
-    if (service.verificationStatus !== 'verified' || !service.isActive) return false;
-    if (selectedCategory !== 'all') {
+
+    // Notification target bypass logic: Target craftsman bypasses filters so deep-linking is flawless [1]
+    const isNotificationTarget = urlProviderId && c._id === urlProviderId;
+
+    if (!isNotificationTarget) {
+      // 1. Owner's Active status: If owner has paused/inactive the service, hide completely
+      if (service.isActive === false) return false;
+
+      // 2. Admin's Verification status:
+      // Hide if not verified by admin (unless 'showPending' is toggled for admin preview checks)
+      if (!showPending && service.verificationStatus !== 'verified') return false;
+    }
+
+    if (!isNotificationTarget && selectedCategory !== 'all') {
       const hasCategory = c.services?.some(s => s.category === selectedCategory);
       if (!hasCategory) return false;
     }
-    if (searchQuery) {
+    if (!isNotificationTarget && searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
         c.fullName?.toLowerCase().includes(query) ||
@@ -333,7 +388,7 @@ const ServicesUI = () => {
         );
       if (!matchesSearch) return false;
     }
-    if (emergencyOnly && !c.emergencyAvailable) return false;
+    if (!isNotificationTarget && emergencyOnly && !c.emergencyAvailable) return false;
     return true;
   });
 
@@ -404,7 +459,6 @@ const ServicesUI = () => {
                 </Link>
               ))}
 
-              {/* Join as Pro Button */}
               <button
                 onClick={() => router.push('/partner')}
                 className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white"
@@ -413,7 +467,6 @@ const ServicesUI = () => {
                 Join as Pro
               </button>
 
-              {/* Auth Button - Desktop */}
               {status === "loading" ? (
                 <div className="w-24 h-10 bg-gray-200 rounded-full animate-pulse"></div>
               ) : session ? (
@@ -448,10 +501,8 @@ const ServicesUI = () => {
                       </div>
                     </div>
 
-                    {/* My Profile - role aware with API fetch */}
                     <ProfileLink />
 
-                    {/* My Bookings */}
                     <Link href="/bookings"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
                     >
@@ -516,7 +567,6 @@ const ServicesUI = () => {
                 </Link>
               ))}
 
-              {/* Mobile Join as Pro Button */}
               <button
                 onClick={() => {
                   closeMobileMenu();
@@ -528,12 +578,10 @@ const ServicesUI = () => {
                 Join as Professional
               </button>
 
-              {/* Mobile Auth Section */}
               {status === "loading" ? (
                 <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
               ) : session ? (
                 <div className="border-t border-gray-100 pt-4 space-y-2">
-                  {/* User Info */}
                   <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
                     {session.user?.image ? (
                       <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
@@ -548,10 +596,8 @@ const ServicesUI = () => {
                     </div>
                   </div>
 
-                  {/* My Profile - role aware with API fetch */}
                   <MobileProfileLink onNavigate={closeMobileMenu} />
 
-                  {/* My Bookings */}
                   <Link
                     href="/bookings"
                     onClick={closeMobileMenu}
@@ -563,7 +609,6 @@ const ServicesUI = () => {
                     My Bookings
                   </Link>
 
-                  {/* Sign Out */}
                   <button
                     onClick={() => {
                       signOut();
@@ -740,7 +785,6 @@ const ServicesUI = () => {
                 {showPending && <span className="text-sm text-gray-400 ml-2">(showing all)</span>}
               </p>
               <div className="flex items-center gap-3 flex-wrap">
-                {/* ── Near Me Toggle ── */}
                 <button
                   onClick={handleNearbyToggle}
                   disabled={nearbyLoading}
@@ -762,7 +806,6 @@ const ServicesUI = () => {
                     <span className="ml-1 text-white/80 text-xs font-normal">✕</span>
                   )}
                 </button>
-                {/* ─────────────────── */}
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <MapPin size={16} />
                   <span>{nearbyOnly ? `Within ${NEARBY_KM}km` : 'Across Sri Lanka'}</span>
@@ -791,7 +834,6 @@ const ServicesUI = () => {
               </div>
             )}
 
-            {/* Location status pill */}
             {!loading && nearbyOnly && locationStatus === 'granted' && (
               <div className="flex items-center gap-2 mb-4 text-sm text-green-700 bg-green-50 border border-green-200 px-3 py-2 rounded-xl w-fit">
                 <MapPin size={14} className="text-green-600" />
@@ -856,8 +898,6 @@ const ServicesUI = () => {
             {!loading && !error && sortedCraftsmen.length > 0 && (
               <div className="space-y-4">
                 {(() => {
-                // When nearbyOnly is ON — API already filtered, all results are nearby
-                // When OFF — split by distanceKm (API attached) or haversine fallback
                 const getKm = (c) => {
                   if (typeof c.distanceKm === 'number') return c.distanceKm;
                   if (!userCoords || !c.locationEnabled) return Infinity;
@@ -879,14 +919,11 @@ const ServicesUI = () => {
                   : sortedCraftsmen;
 
                 const getDistLabel = (c) => {
-                  // Priority 1: API eken distanceKm attach wela thiyanawa nam direct use kara
-                  // (Near Me ON/OFF dekeditama work karanawa)
                   if (typeof c.distanceKm === 'number') {
                     return c.distanceKm < 1
                       ? `${Math.round(c.distanceKm * 1000)}m`
                       : `${c.distanceKm.toFixed(1)}km`;
                   }
-                  // Priority 2: userCoords inna + locationEnabled + [0,0] nove valid coords
                   if (!userCoords || !c.locationEnabled) return null;
                   const [cLng, cLat] = c.location?.coordinates || [];
                   if (!cLat || !cLng || (cLat === 0 && cLng === 0)) return null;
@@ -904,7 +941,6 @@ const ServicesUI = () => {
                     >
                       <div className="p-6">
                         <div className="flex flex-col sm:flex-row gap-4">
-                          {/* Profile Image */}
                           <div className="flex-shrink-0">
                             {craftsman.photo ? (
                               <img
@@ -913,13 +949,12 @@ const ServicesUI = () => {
                                 className="w-20 h-20 rounded-2xl object-cover shadow-lg"
                               />
                             ) : (
-                              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                              <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                                 {getInitials(craftsman.fullName)}
                               </div>
                             )}
                           </div>
 
-                          {/* Info */}
                           <div className="flex-1">
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div>
@@ -947,10 +982,9 @@ const ServicesUI = () => {
                                       24/7 Emergency
                                     </div>
                                   )}
-                                  {/* Live Location badge — locationEnabled on wela distance thiyanawa nam */}
                                   {craftsman.locationEnabled && distLabel ? (
                                     <div className="flex items-center gap-1 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-semibold shadow-sm">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block"></span>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block font-semibold"></span>
                                       Live · {distLabel} away
                                     </div>
                                   ) : craftsman.locationEnabled && !distLabel ? (
@@ -965,7 +999,6 @@ const ServicesUI = () => {
                                     </div>
                                   ) : null}
                                 </div>
-                                {/* Services Badges — category enum use karanna (clean labels) */}
                                 {(() => {
                                   const categoryLabels = {
                                     electrician: 'Electrician',
@@ -1031,7 +1064,6 @@ const ServicesUI = () => {
                                 </div>
                               </div>
 
-                              {/* Price */}
                               <div className="text-right">
                                 <div className="text-2xl font-bold text-blue-950">{formatCurrency(service.dailyRate)}</div>
                                 <div className="text-sm text-gray-500">per day</div>
@@ -1046,7 +1078,6 @@ const ServicesUI = () => {
                               </div>
                             </div>
 
-                            {/* Skills */}
                             {service.skills && service.skills.length > 0 && (
                               <div className="flex flex-wrap gap-2 mt-4">
                                 {service.skills.slice(0, 5).map((skill, idx) => (
@@ -1060,7 +1091,6 @@ const ServicesUI = () => {
                               </div>
                             )}
 
-                            {/* Service Areas */}
                             {craftsman.serviceAreas && craftsman.serviceAreas.length > 0 && (
                               <div className="flex items-center gap-2 mt-3 text-sm">
                                 <MapPin size={14} className="text-orange-500" />
@@ -1073,7 +1103,6 @@ const ServicesUI = () => {
                           </div>
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="flex flex-wrap gap-3 mt-6 pt-4 border-t border-gray-100">
                           <button
                             onClick={() => setBookingModal({ provider: craftsman, service: getService(craftsman) })}
@@ -1097,7 +1126,6 @@ const ServicesUI = () => {
                         </div>
                       </div>
 
-                      {/* Expanded Details */}
                       {expandedCraftsman === craftsman._id && (
                         <div className="px-6 pb-6 pt-2 bg-gray-50 border-t border-gray-100">
                           <div className="grid md:grid-cols-2 gap-6">
@@ -1173,7 +1201,6 @@ const ServicesUI = () => {
                             </div>
                           </div>
 
-                          {/* Comment Section */}
                           <CommentSection providerId={craftsman._id?.toString()} />
                         </div>
                       )}
@@ -1183,7 +1210,6 @@ const ServicesUI = () => {
 
                 return (
                   <>
-                    {/* Nearby providers section */}
                     {nearby.length > 0 && (
                       <>
                         <div className="flex items-center gap-2 mb-4">
@@ -1198,7 +1224,6 @@ const ServicesUI = () => {
                       </>
                     )}
 
-                    {/* Divider when both sections exist */}
                     {nearby.length > 0 && others.length > 0 && (
                       <div className="flex items-center gap-4 my-6">
                         <div className="flex-1 border-t border-gray-200"></div>
@@ -1207,7 +1232,6 @@ const ServicesUI = () => {
                       </div>
                     )}
 
-                    {/* Others / all providers */}
                     {others.length > 0 && (
                       <div className="space-y-6">
                         {others.map(renderCard)}
@@ -1262,7 +1286,7 @@ const ServicesUI = () => {
                 <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   {item.icon}
                 </div>
-                <h3 className="text-xl font-bold text-blue-950 mb-3">{item.title}</h3>
+                <div className="text-xl font-bold text-blue-950 mb-3">{item.title}</div>
                 <p className="text-gray-600 mb-4 leading-relaxed">{item.desc}</p>
                 <div className="inline-flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-sm font-semibold">
                   <CheckCircle2 size={16} />
@@ -1330,7 +1354,7 @@ const ServicesUI = () => {
               {contactModal.photo ? (
                 <img src={contactModal.photo} alt={contactModal.fullName} className="w-16 h-16 rounded-2xl object-cover" />
               ) : (
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold">
                   {getInitials(contactModal.fullName)}
                 </div>
               )}
@@ -1402,7 +1426,6 @@ const ServicesUI = () => {
                 </div>
               )}
 
-              {/* WhatsApp Button */}
               {(contactModal.whatsapp || contactModal.phone) && (
                 <a
                   href={`https://wa.me/94${((contactModal.whatsapp || contactModal.phone) || '').replace(/^0+/, '')}`}
@@ -1441,7 +1464,6 @@ const ServicesUI = () => {
         </div>
       )}
 
-      {/* Booking Modal */}
       {bookingModal && (
         <BookingModal
           provider={bookingModal.provider}

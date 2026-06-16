@@ -1,8 +1,8 @@
 // src/app/api/partner/bookings/route.js
 import { NextResponse } from 'next/server';
-import connectDB from '@/app/lib/mongodb';          // ✅ fixed
-import Booking from '@/app/models/Booking';          // ✅ fixed
-import ServiceProvider from '@/app/models/ServiceProvider'; // ✅ fixed
+import connectDB from '@/app/lib/mongodb';          
+import Booking from '@/app/models/Booking';          
+import ServiceProvider from '@/app/models/ServiceProvider'; 
 import { auth } from '@/auth';
 
 export async function GET() {

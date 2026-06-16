@@ -4,6 +4,7 @@ import connectDB from '@/app/lib/mongodb';
 import Comment from '@/app/models/Comment';
 import Customer from '@/app/models/Customer';
 import ServiceProvider from '@/app/models/ServiceProvider';
+import Notification from '@/app/models/Notification'; 
 
 const VALID_TYPES = ['like', 'love', 'haha', 'wow', 'sad', 'angry'];
 
@@ -17,9 +18,6 @@ async function getUserId(session) {
 }
 
 // POST /api/comments/react
-// Body: { commentId, type, replyId? }
-// - Same type again → remove (toggle off)
-// - Different type → switch
 export async function POST(request) {
   try {
     const session = await auth();
@@ -37,32 +35,65 @@ export async function POST(request) {
     const comment = await Comment.findById(commentId);
     if (!comment) return NextResponse.json({ success: false, error: 'Comment not found' }, { status: 404 });
 
+    let reactionAdded = false;
+
     function toggleReaction(reactions) {
       const existing = reactions.findIndex(r => r.userId === userId);
       if (existing !== -1) {
         if (reactions[existing].type === type) {
           // Same type → remove
           reactions.splice(existing, 1);
+          reactionAdded = false;
         } else {
           // Different type → switch
           reactions[existing].type = type;
+          reactionAdded = true;
         }
       } else {
         reactions.push({ userId, type });
+        reactionAdded = true;
       }
       return reactions;
     }
 
+    // ── 1. REPLY REACTION TRIGGER ──
     if (replyId) {
       const reply = comment.replies.id(replyId);
       if (!reply) return NextResponse.json({ success: false, error: 'Reply not found' }, { status: 404 });
       toggleReaction(reply.reactions);
       await comment.save();
+
+      // Create Precise Notification link for Reply Reaction [1]
+      if (reactionAdded && comment.provider.toString() !== userId) {
+        await Notification.create({
+          recipient: comment.provider,
+          senderName: session.user.name || 'Someone',
+          type: 'comment_reaction',
+          title: 'Reaction on Profile Reply',
+          message: `${session.user.name || 'Someone'} reacted with "${type}" to a reply on your profile.`,
+          link: `/partner/profile?commentId=${commentId}&replyId=${replyId}` // ✅ Deep link
+        });
+      }
+
       return NextResponse.json({ success: true, reactions: reply.reactions, userReaction: reply.reactions.find(r => r.userId === userId)?.type || null });
     }
 
+    // ── 2. COMMENT REACTION TRIGGER ──
     toggleReaction(comment.reactions);
     await comment.save();
+
+    // Create Precise Notification link for Comment Reaction [1]
+    if (reactionAdded && comment.provider.toString() !== userId) {
+      await Notification.create({
+        recipient: comment.provider,
+        senderName: session.user.name || 'Someone',
+        type: 'comment_reaction',
+        title: 'New Comment Reaction',
+        message: `${session.user.name || 'Someone'} reacted with "${type}" on your profile comment.`,
+        link: `/partner/profile?commentId=${commentId}` // ✅ Deep link
+      });
+    }
+
     return NextResponse.json({
       success: true,
       reactions: comment.reactions,

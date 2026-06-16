@@ -5,34 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from 'next/image';
 import {
-  Wrench,
-  Star,
-  ShieldCheck,
-  Users,
-  Clock,
-  Award,
-  TrendingUp,
-  CheckCircle2,
-  ChevronRight,
-  Menu,
-  X,
-  Briefcase,
-  MapPin,
-  CreditCard,
-  Smartphone,
-  Globe,
-  MessageCircle,
-  Camera,
-  FileText,
-  Sparkles,
-  Zap,
-  Phone,
-  Mail,
-  Facebook,
-  Twitter,
-  Instagram,
-  ChevronDown,
-  Loader2
+  Wrench, Star, ShieldCheck, Users, Clock, Award, TrendingUp,
+  CheckCircle2, ChevronRight, Menu, X, Briefcase, MapPin, CreditCard,
+  Smartphone, Globe, MessageCircle, Camera, FileText, Sparkles, Zap,
+  Phone, Mail, Facebook, Twitter, Instagram, ChevronDown, Loader2,
+  Search, Hammer, Droplets, Paintbrush, Wind, Leaf
 } from 'lucide-react';
 
 // Profile Link Component - Fetches role from API
@@ -126,6 +103,223 @@ function MobileProfileLink({ onNavigate }) {
   );
 }
 
+// Home.js Navigation Component 
+function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, router }) {
+  const closeMobileMenu = () => setIsMenuOpen(false);
+
+  return (
+    <nav className={`fixed top-0 w-full z-50 transition-all duration-300 bg-white shadow-md py-2 border-b border-gray-100`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+            <div className="p-2 rounded-lg text-white bg-orange-500 transform hover:rotate-12 transition-transform">
+              <Wrench size={24} />
+            </div>
+            <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-blue-900">
+              HelpNow <span className="text-orange-500">SL</span>
+            </span>
+          </Link>
+
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-6 lg:gap-8">
+            {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
+              <Link 
+                key={item} 
+                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
+                className="font-semibold transition relative group text-gray-700 hover:text-orange-500"
+              >
+                {item}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300"></span>
+              </Link>
+            ))}
+            
+            {/* Join as Pro Button */}
+            <button 
+              onClick={() => router.push('/partner')}
+              className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Briefcase size={18} />
+              Join as Pro
+            </button>
+            
+            {/* Auth Button - Desktop */}
+            {status === "loading" ? (
+              <div className="w-24 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+            ) : session ? (
+              <div className="relative group">
+                <button className="flex items-center gap-2 focus:outline-none">
+                  {session.user?.image ? (
+                    <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold">
+                      {session.user?.name?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <span className="hidden lg:inline font-medium text-gray-700">
+                    {session.user?.name?.split(' ')[0]}
+                  </span>
+                </button>
+                {/* Dropdown */}
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                      {session.user?.image ? (
+                        <Image src={session.user.image} alt="" width={36} height={36} className="rounded-full" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                          {session.user?.name?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{session.user?.name}</p>
+                        <p className="text-xs text-gray-500 truncate max-w-[150px]">{session.user?.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* My Profile */}
+                  <ProfileLink />
+
+                  {/* My Bookings */}
+                  <Link href="/bookings"
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
+                  >
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    </div>
+                    <div>
+                      <p className="font-semibold">My Bookings</p>
+                      <p className="text-xs text-gray-400">View all bookings</p>
+                    </div>
+                  </Link>
+
+                  <div className="border-t border-gray-100 my-1"></div>
+                  <button onClick={() => signOut()}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
+                  >
+                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Sign Out</p>
+                      <p className="text-xs text-gray-400">Logout from account</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => signIn('google')}
+                className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                Login / Sign Up
+              </button>
+            )}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <button 
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-800"
+              aria-label="Toggle menu"
+            >
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      {isMenuOpen && (
+        <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-xl">
+          <div className="px-4 py-6 space-y-4">
+            {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
+              <Link 
+                key={item} 
+                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
+                className="block py-3 px-4 text-lg font-semibold hover:bg-orange-50 rounded-xl transition"
+                onClick={closeMobileMenu}
+              >
+                {item}
+              </Link>
+            ))}
+            
+            <button 
+              onClick={() => {
+                closeMobileMenu();
+                router.push('/partner');
+              }}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
+            >
+              <Briefcase size={18} />
+              Join as Professional
+            </button>
+            
+            {status === "loading" ? (
+              <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+            ) : session ? (
+              <div className="border-t border-gray-100 pt-4 space-y-2">
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
+                  {session.user?.image ? (
+                    <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold">
+                      {session.user?.name?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{session.user?.name}</p>
+                    <p className="text-xs text-gray-500 truncate max-w-[200px]">{session.user?.email}</p>
+                  </div>
+                </div>
+                
+                <MobileProfileLink onNavigate={closeMobileMenu} />
+                
+                <Link
+                  href="/bookings"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
+                >
+                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  </div>
+                  My Bookings
+                </Link>
+                
+                <button
+                  onClick={() => { 
+                    signOut(); 
+                    closeMobileMenu(); 
+                  }}
+                  className="flex items-center gap-3 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition"
+                >
+                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  </div>
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { 
+                  signIn('google'); 
+                  closeMobileMenu(); 
+                }}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
+              >
+                Login / Sign Up
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
+
 const BecomePartner = () => {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -147,8 +341,6 @@ const BecomePartner = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  const closeMobileMenu = () => setIsMenuOpen(false);
 
   // Register button click - login na nam Google ekata, login nam register ekata
   const handleRegisterClick = async () => {
@@ -286,278 +478,57 @@ const BecomePartner = () => {
 
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden">
-      {/* Navigation Bar */}
-      <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
-        scrolled ? 'bg-white/95 backdrop-blur-md shadow-lg py-2' : 'bg-transparent backdrop-blur-sm py-4'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-              <div className={`p-2 rounded-lg text-white transform hover:rotate-12 transition-transform ${
-                scrolled ? 'bg-blue-600' : 'bg-blue-600/90'
-              }`}>
-                <Wrench size={24} />
-              </div>
-              <span className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
-                scrolled ? 'text-blue-900' : 'text-white'
-              }`}>
-                HelpNow <span className="text-orange-500">SL</span>
-              </span>
-            </Link>
+      {/* Navigation from home.js */}
+      <Navigation 
+        scrolled={scrolled}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+        session={session}
+        status={status}
+        router={router}
+      />
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-6 lg:gap-8">
-              {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
-                <Link
-                  key={item}
-                  href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
-                  className={`font-semibold transition relative group ${
-                    scrolled ? 'text-gray-700 hover:text-blue-600' : 'text-white hover:text-orange-300'
-                  }`}
-                >
-                  {item}
-                  <span className={`absolute -bottom-1 left-0 w-0 h-0.5 group-hover:w-full transition-all duration-300 ${
-                    scrolled ? 'bg-blue-600' : 'bg-orange-400'
-                  }`}></span>
-                </Link>
-              ))}
-
-              {/* Join as Pro Button */}
-              <button
-                onClick={handleRegisterClick}
-                disabled={isRedirecting}
-                className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${
-                  scrolled
-                    ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                    : 'bg-white text-blue-900 hover:bg-gray-100'
-                } disabled:opacity-70`}
-              >
-                {isRedirecting ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Briefcase size={18} />
-                )}
-                {isRedirecting ? 'Redirecting...' : 'Join as Pro'}
-              </button>
-
-              {/* Auth Button - Desktop */}
-              {status === "loading" ? (
-                <div className="w-24 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-              ) : session ? (
-                <div className="relative group">
-                  <button className="flex items-center gap-2 focus:outline-none">
-                    {session.user?.image ? (
-                      <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold">
-                        {session.user?.name?.[0]?.toUpperCase()}
-                      </div>
-                    )}
-                    <span className={`hidden lg:inline font-medium ${scrolled ? 'text-gray-700' : 'text-white'}`}>
-                      {session.user?.name?.split(' ')[0]}
-                    </span>
-                  </button>
-                  {/* Dropdown */}
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl py-2 z-50 border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <div className="flex items-center gap-3">
-                        {session.user?.image ? (
-                          <Image src={session.user.image} alt="" width={36} height={36} className="rounded-full" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
-                            {session.user?.name?.[0]?.toUpperCase()}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{session.user?.name}</p>
-                          <p className="text-xs text-gray-500 truncate max-w-[150px]">{session.user?.email}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* My Profile - role aware with API fetch */}
-                    <ProfileLink />
-
-                    {/* My Bookings */}
-                    <Link href="/bookings"
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
-                    >
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                      </div>
-                      <div>
-                        <p className="font-semibold">My Bookings</p>
-                        <p className="text-xs text-gray-400">View all bookings</p>
-                      </div>
-                    </Link>
-
-                    <div className="border-t border-gray-100 my-1"></div>
-                    <button onClick={() => signOut()}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
-                    >
-                      <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                      </div>
-                      <div>
-                        <p className="font-semibold">Sign Out</p>
-                        <p className="text-xs text-gray-400">Logout from account</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => signIn('google')}
-                  className={`px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${
-                    scrolled ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-white text-blue-900 hover:bg-gray-100'
-                  }`}
-                >
-                  Login / Sign Up
-                </button>
-              )}
-            </div>
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden">
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`p-2 rounded-lg transition-colors ${
-                  scrolled ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white'
-                }`}
-                aria-label="Toggle menu"
-              >
-                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-            </div>
-          </div>
+      {/* Hero Section with Responsive Background Image */}
+      <section className="relative pt-32 pb-20 px-4 sm:px-6 overflow-hidden min-h-screen flex items-center">
+        
+        {/* Background Image Setup using Next.js Image */}
+        <div className="absolute inset-0 z-0">
+          {/* Mobile: subtle gradient at top/bottom only, keep image visible */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 sm:hidden z-10"></div>
+          {/* Desktop: side gradient */}
+          <div className="absolute inset-0 hidden sm:block bg-gradient-to-r from-black/80 via-black/50 to-black/30 z-10"></div>
+          <Image 
+            src="/images/ChatGPT Image Jun 1, 2026, 12_49_54 AM.png"
+            alt="HelpNow SL Background" 
+            fill
+            priority
+            quality={100}
+            className="object-cover object-[70%_20%] sm:object-center"
+          />
         </div>
 
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-xl">
-            <div className="px-4 py-6 space-y-4">
-              {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
-                <Link
-                  key={item}
-                  href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
-                  className="block py-3 px-4 text-lg font-semibold hover:bg-blue-50 rounded-xl transition"
-                  onClick={closeMobileMenu}
-                >
-                  {item}
-                </Link>
-              ))}
-
-              {/* Mobile Join as Pro Button */}
-              <button
-                onClick={() => {
-                  closeMobileMenu();
-                  handleRegisterClick();
-                }}
-                disabled={isRedirecting}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-70"
-              >
-                {isRedirecting ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Redirecting...
-                  </>
-                ) : (
-                  <>
-                    <Briefcase size={18} />
-                    Join as Professional
-                  </>
-                )}
-              </button>
-
-              {/* Mobile Auth Section */}
-              {status === "loading" ? (
-                <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
-              ) : session ? (
-                <div className="border-t border-gray-100 pt-4 space-y-2">
-                  {/* User Info */}
-                  <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
-                    {session.user?.image ? (
-                      <Image src={session.user.image} alt="" width={40} height={40} className="rounded-full border-2 border-orange-500" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold">
-                        {session.user?.name?.[0]?.toUpperCase()}
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">{session.user?.name}</p>
-                      <p className="text-xs text-gray-500 truncate max-w-[200px]">{session.user?.email}</p>
-                    </div>
-                  </div>
-
-                  {/* My Profile - role aware with API fetch */}
-                  <MobileProfileLink onNavigate={closeMobileMenu} />
-
-                  {/* My Bookings */}
-                  <Link
-                    href="/bookings"
-                    onClick={closeMobileMenu}
-                    className="flex items-center gap-3 w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl transition"
-                  >
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                    </div>
-                    My Bookings
-                  </Link>
-
-                  {/* Sign Out */}
-                  <button
-                    onClick={() => {
-                      signOut();
-                      closeMobileMenu();
-                    }}
-                    className="flex items-center gap-3 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl transition"
-                  >
-                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    </div>
-                    Sign Out
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    signIn('google');
-                    closeMobileMenu();
-                  }}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
-                >
-                  Login / Sign Up
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </nav>
-
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-4 sm:px-6 overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900">
-        <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0 opacity-10 z-10 pointer-events-none">
           <div className="absolute top-0 left-0 w-96 h-96 bg-orange-500 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-400 rounded-full blur-3xl"></div>
         </div>
 
-        <div className="max-w-7xl mx-auto relative z-10">
+        <div className="max-w-7xl mx-auto relative z-20 w-full mt-10 sm:mt-0">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left Content */}
             <div>
               <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 mb-6">
                 <Sparkles size={18} className="text-orange-400" />
                 <span className="text-sm font-semibold">Join 500+ Verified Professionals</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-6 text-white">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-6 text-white leading-tight">
                 Turn Your Skills Into{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-600">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-600 block sm:inline mt-2 sm:mt-0">
                   Steady Income
                 </span>
               </h1>
 
-              <p className="text-xl text-blue-100 mb-8 max-w-lg">
+              <p className="text-lg sm:text-xl text-gray-100 mb-8 max-w-lg">
                 Join Sri Lanka's fastest growing platform for skilled professionals. Get verified, find customers, and grow your business.
               </p>
 
@@ -571,7 +542,7 @@ const BecomePartner = () => {
                   <button
                     onClick={handleRegisterClick}
                     disabled={isRedirecting}
-                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-full text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group disabled:opacity-70"
+                    className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-full text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group disabled:opacity-70"
                   >
                     {isRedirecting ? (
                       <>
@@ -591,7 +562,7 @@ const BecomePartner = () => {
                   <button
                     onClick={handleRegisterClick}
                     disabled={isRedirecting}
-                    className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-bold py-4 px-8 rounded-full text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group"
+                    className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-bold py-4 px-8 rounded-full text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group"
                   >
                     {isRedirecting ? (
                       <>
@@ -605,7 +576,7 @@ const BecomePartner = () => {
                       </>
                     )}
                   </button>
-                  <button className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white font-bold py-4 px-8 rounded-full text-lg border border-white/30 transition-all hover:-translate-y-1">
+                  <button className="w-full sm:w-auto bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white font-bold py-4 px-8 rounded-full text-lg border border-white/30 transition-all hover:-translate-y-1">
                     Learn More
                   </button>
                 </div>
@@ -613,28 +584,28 @@ const BecomePartner = () => {
 
               {/* Login note - only show if not logged in */}
               {status !== 'authenticated' && (
-                <p className="text-blue-200 text-sm mt-4 flex items-center gap-2">
+                <p className="text-gray-200 text-sm mt-4 flex items-center gap-2 justify-center sm:justify-start">
                   <ShieldCheck size={16} className="text-green-400" />
                   Quick & secure sign-in with Google required
                 </p>
               )}
 
-              <div className="grid grid-cols-3 gap-6 mt-12">
+              <div className="grid grid-cols-3 gap-4 sm:gap-6 mt-12 border-t border-white/20 pt-8 sm:border-none sm:pt-0">
                 {[
                   { value: '500+', label: 'Active Pros' },
                   { value: '50K+', label: 'Customers' },
                   { value: 'LKR 15M+', label: 'Earnings' }
                 ].map((stat, idx) => (
-                  <div key={idx}>
-                    <div className="text-2xl font-bold text-white">{stat.value}</div>
-                    <div className="text-sm text-blue-200">{stat.label}</div>
+                  <div key={idx} className="text-center sm:text-left">
+                    <div className="text-xl sm:text-2xl font-bold text-white">{stat.value}</div>
+                    <div className="text-xs sm:text-sm text-gray-200">{stat.label}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right Content - Preview Card */}
-            <div className="relative">
+            {/* Right Content - Preview Card (Hidden on very small screens to keep focus on CTA) */}
+            <div className="relative hidden md:block mt-10 lg:mt-0">
               <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/20 shadow-2xl">
                 <div className="bg-white rounded-2xl p-6">
                   <div className="flex items-center gap-4 mb-6">
@@ -643,13 +614,13 @@ const BecomePartner = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-lg">Priyantha Fernando</h3>
+                        <h3 className="font-bold text-lg text-gray-900">Priyantha Fernando</h3>
                         <div className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
                           <ShieldCheck size={12} />
                           Verified
                         </div>
                       </div>
-                      <p className="text-orange-600">Master Electrician</p>
+                      <p className="text-orange-600 font-medium">Master Electrician</p>
                       <div className="flex items-center gap-1 mt-1">
                         {[1,2,3,4,5].map(star => (
                           <Star key={star} size={14} className="text-yellow-400 fill-current" />
@@ -660,19 +631,19 @@ const BecomePartner = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-gray-50 p-3 rounded-xl">
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <div className="text-sm text-gray-500">Jobs Done</div>
-                      <div className="font-bold">1,247+</div>
+                      <div className="font-bold text-gray-900">1,247+</div>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded-xl">
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <div className="text-sm text-gray-500">Earnings</div>
                       <div className="font-bold text-green-600">LKR 1.2M</div>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {['Wiring', 'Lighting', 'Inverters'].map((skill, idx) => (
-                      <span key={idx} className="bg-gray-100 text-xs px-3 py-1.5 rounded-full">
+                      <span key={idx} className="bg-gray-100 text-gray-700 text-xs px-3 py-1.5 rounded-full font-medium">
                         {skill}
                       </span>
                     ))}
@@ -687,10 +658,10 @@ const BecomePartner = () => {
                 </div>
               </div>
 
-              <div className="absolute -top-4 -right-4 bg-green-500 text-white px-4 py-2 rounded-full shadow-xl animate-bounce">
+              <div className="absolute -top-4 -right-4 bg-green-500 text-white px-4 py-2 rounded-full shadow-xl animate-bounce border border-white/20">
                 <div className="flex items-center gap-2">
                   <Zap size={16} />
-                  <span className="font-bold">Earn up to LKR 80k/month</span>
+                  <span className="font-bold text-sm">Earn up to LKR 80k/month</span>
                 </div>
               </div>
             </div>
@@ -701,10 +672,10 @@ const BecomePartner = () => {
       {/* Benefits Section */}
       <section className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="text-center mb-12">
-          <span className="inline-block bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
+          <span className="inline-block bg-orange-100 text-orange-500 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
             Why Join HelpNow SL
           </span>
-          <h2 className="text-3xl sm:text-4xl font-black text-blue-950 mb-4">
+          <h2 className="text-3xl sm:text-4xl font-black text-orange-500 mb-4">
             Benefits That Help You Grow
           </h2>
           <p className="text-gray-600 max-w-2xl mx-auto text-lg">
@@ -721,7 +692,7 @@ const BecomePartner = () => {
               <div className={`w-14 h-14 bg-${benefit.color}-100 rounded-xl flex items-center justify-center mb-4 text-${benefit.color}-600 group-hover:scale-110 transition-transform`}>
                 {benefit.icon}
               </div>
-              <h3 className="text-xl font-bold text-blue-950 mb-2">{benefit.title}</h3>
+              <h3 className="text-xl font-bold text-orange-500 mb-2">{benefit.title}</h3>
               <p className="text-gray-600">{benefit.description}</p>
             </div>
           ))}
@@ -735,7 +706,7 @@ const BecomePartner = () => {
             <span className="inline-block bg-orange-100 text-orange-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
               Simple 4-Step Process
             </span>
-            <h2 className="text-3xl sm:text-4xl font-black text-blue-950 mb-4">
+            <h2 className="text-3xl sm:text-4xl font-black text-orange-500 mb-4">
               How to Get Started
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto text-lg">
@@ -771,7 +742,7 @@ const BecomePartner = () => {
           <span className="inline-block bg-green-100 text-green-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
             Success Stories
           </span>
-          <h2 className="text-3xl sm:text-4xl font-black text-blue-950 mb-4">
+          <h2 className="text-3xl sm:text-4xl font-black text-orange-500 mb-4">
             What Our Professionals Say
           </h2>
           <p className="text-gray-600 max-w-2xl mx-auto text-lg">
@@ -815,10 +786,10 @@ const BecomePartner = () => {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <span className="inline-block bg-blue-600 text-white px-4 py-1.5 rounded-full text-sm font-bold mb-4">
+              <span className="inline-block bg-orange-100 text-orange-500 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
                 What You Need
               </span>
-              <h2 className="text-3xl sm:text-4xl font-black text-blue-950 mb-6">
+              <h2 className="text-3xl sm:text-4xl font-black text-orange-500 mb-6">
                 Ready to Get Verified?
               </h2>
               <p className="text-gray-600 text-lg mb-8">
@@ -852,8 +823,7 @@ const BecomePartner = () => {
                 {[
                   { badge: "Verified ID", desc: "Customers trust verified professionals 3x more", color: "blue" },
                   { badge: "Police Clearance", desc: "Top-rated badge with premium visibility", color: "green" },
-                  { badge: "Professional Cert", desc: "Specialist badge for qualified experts", color: "purple" },
-                  { badge: "Insurance Covered", desc: "Priority in customer searches", color: "orange" }
+                  { badge: "Professional Cert", desc: "Specialist badge for qualified experts", color: "purple" }
                 ].map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-3">
@@ -880,10 +850,10 @@ const BecomePartner = () => {
       {/* FAQ Section */}
       <section className="py-20 px-4 sm:px-6 max-w-4xl mx-auto">
         <div className="text-center mb-12">
-          <span className="inline-block bg-purple-100 text-purple-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
+          <span className="inline-block bg-orange-100 text-orange-500 px-4 py-1.5 rounded-full text-sm font-bold mb-4">
             FAQ
           </span>
-          <h2 className="text-3xl sm:text-4xl font-black text-blue-950 mb-4">
+          <h2 className="text-3xl sm:text-4xl font-black text-orange-500 mb-4">
             Frequently Asked Questions
           </h2>
           <p className="text-gray-600">Got questions? We've got answers.</p>
