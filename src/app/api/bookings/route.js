@@ -1,11 +1,13 @@
+// 📁 src/app/api/bookings/route.js
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import Booking from '@/app/models/Booking';
 import Customer from '@/app/models/Customer';
 import ServiceProvider from '@/app/models/ServiceProvider';
 import { auth } from '@/auth';
+import { sendEmail } from '@/app/lib/mailer';
+import { bookingRequestEmailToProvider } from '@/app/lib/emailTemplates';
 
-// POST - new booking hadanawa
 export async function POST(request) {
   try {
     const session = await auth();
@@ -21,7 +23,6 @@ export async function POST(request) {
       jobDescription, preferredDate, estimatedDays, customerNotes
     } = body;
 
-    // Customer find or create
     let customer = await Customer.findOne({ email: session.user.email });
     if (!customer) {
       customer = await Customer.create({
@@ -32,7 +33,6 @@ export async function POST(request) {
         isProfileComplete: !!(phone && address && district),
       });
     } else {
-      // Update customer details
       customer.phone = phone || customer.phone;
       customer.address = address || customer.address;
       customer.district = district || customer.district;
@@ -41,7 +41,6 @@ export async function POST(request) {
       await customer.save();
     }
 
-    // Provider find
     const provider = await ServiceProvider.findById(providerId);
     if (!provider) {
       return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
@@ -49,7 +48,6 @@ export async function POST(request) {
 
     const service = provider.services?.find(s => s.category === serviceCategory) || provider.services?.[0];
 
-    // Create booking
     const booking = await Booking.create({
       customer: customer._id,
       customerName: customer.name,
@@ -71,6 +69,32 @@ export async function POST(request) {
       status: 'pending',
     });
 
+    // ✅ checkProviderEmail pass karala emailAlerts check karanawa
+    try {
+      const { subject, html } = bookingRequestEmailToProvider({
+        providerName:     provider.fullName,
+        customerName:     customer.name,
+        customerPhone:    phone,
+        customerEmail:    customer.email,
+        serviceCategory:  service?.category,
+        jobDescription,
+        preferredDate,
+        estimatedDays:    parseInt(estimatedDays) || 1,
+        dailyRate:        service?.dailyRate,
+        customerAddress:  address,
+        customerCity:     city,
+        customerDistrict: district,
+      });
+      await sendEmail({
+        to: provider.email,
+        subject,
+        html,
+        checkProviderEmail: provider.email, // ✅ OFF nam email noyawanawa
+      });
+    } catch (emailErr) {
+      console.error('📧 Provider email failed:', emailErr.message);
+    }
+
     return NextResponse.json({ success: true, booking }, { status: 201 });
 
   } catch (error) {
@@ -79,7 +103,6 @@ export async function POST(request) {
   }
 }
 
-// GET - customer bookings ganna
 export async function GET(request) {
   try {
     const session = await auth();
@@ -94,9 +117,7 @@ export async function GET(request) {
       return NextResponse.json({ success: true, bookings: [] });
     }
 
-    const bookings = await Booking.find({ customer: customer._id })
-      .sort({ createdAt: -1 });
-
+    const bookings = await Booking.find({ customer: customer._id }).sort({ createdAt: -1 });
     return NextResponse.json({ success: true, bookings });
 
   } catch (error) {

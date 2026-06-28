@@ -148,7 +148,10 @@ const ServiceProviderSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
-
+emailAlerts: {
+    type: Boolean,
+    default: true,
+},
   // Multiple Services (Fiverr style)
   services: [ServiceSchema],
 

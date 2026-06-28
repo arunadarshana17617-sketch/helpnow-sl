@@ -1,10 +1,11 @@
-﻿// app/api/bookings/[id]/rate/route.js
-
+﻿// 📁 src/app/api/bookings/[id]/rate/route.js
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import connectDB from '@/app/lib/mongodb';
 import Booking from '@/app/models/Booking';
 import ServiceProvider from '@/app/models/ServiceProvider';
+import { sendEmail } from '@/app/lib/mailer';
+import { newRatingEmailToProvider } from '@/app/lib/emailTemplates';
 
 export async function POST(request, { params }) {
   try {
@@ -16,7 +17,6 @@ export async function POST(request, { params }) {
     const { id } = await params;
     const { rating } = await request.json();
 
-    // Validate rating
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json({ error: 'Rating 1-5 අතර දෙන්න' }, { status: 400 });
     }
@@ -24,38 +24,21 @@ export async function POST(request, { params }) {
     await connectDB();
 
     const booking = await Booking.findById(id);
+    if (!booking) return NextResponse.json({ error: 'Booking එක හොයාගත්තේ නෑ' }, { status: 404 });
+    if (booking.customerEmail !== session.user.email) return NextResponse.json({ error: 'ඔයාගේ booking එකක් නෙමෙයි' }, { status: 403 });
+    if (booking.status !== 'completed') return NextResponse.json({ error: 'Completed bookings වලට විතරයි rate කරන්න පුළුවන්' }, { status: 400 });
+    if (booking.rating) return NextResponse.json({ error: 'දැනටමත් rate කළා' }, { status: 400 });
 
-    if (!booking) {
-      return NextResponse.json({ error: 'Booking එක හොයාගත්තේ නෑ' }, { status: 404 });
-    }
-
-    // Customer ගේ booking එකද?
-    if (booking.customerEmail !== session.user.email) {
-      return NextResponse.json({ error: 'ඔයාගේ booking එකක් නෙමෙයි' }, { status: 403 });
-    }
-
-    // Completed booking එකට විතරයි
-    if (booking.status !== 'completed') {
-      return NextResponse.json({ error: 'Completed bookings වලට විතරයි rate කරන්න පුළුවන්' }, { status: 400 });
-    }
-
-    // දැනටමත් rate කළාද?
-    if (booking.rating) {
-      return NextResponse.json({ error: 'දැනටමත් rate කළා' }, { status: 400 });
-    }
-
-    // Booking update
     booking.rating = rating;
     booking.ratedAt = new Date();
     await booking.save();
 
-    // ServiceProvider average rating update
     const provider = await ServiceProvider.findById(booking.provider);
-    if (provider) {
-      const serviceIndex = provider.services.findIndex(
-        s => s.category === booking.serviceCategory
-      );
+    let avgRating = 0;
+    let totalReviews = 0;
 
+    if (provider) {
+      const serviceIndex = provider.services.findIndex(s => s.category === booking.serviceCategory);
       if (serviceIndex !== -1) {
         const allRatings = await Booking.find({
           provider: booking.provider,
@@ -64,22 +47,38 @@ export async function POST(request, { params }) {
           rating: { $ne: null },
         }).select('rating');
 
-        const totalRatings = allRatings.length;
-        const avgRating = totalRatings > 0
-          ? allRatings.reduce((sum, b) => sum + b.rating, 0) / totalRatings
+        totalReviews = allRatings.length;
+        avgRating = totalReviews > 0
+          ? Math.round((allRatings.reduce((sum, b) => sum + b.rating, 0) / totalReviews) * 10) / 10
           : 0;
 
-        provider.services[serviceIndex].rating = Math.round(avgRating * 10) / 10;
-        provider.services[serviceIndex].totalReviews = totalRatings;
+        provider.services[serviceIndex].rating = avgRating;
+        provider.services[serviceIndex].totalReviews = totalReviews;
         await provider.save();
+      }
+
+      // ⭐ Provider ට rating email — emailAlerts check karanawa ✅
+      try {
+        const { subject, html } = newRatingEmailToProvider({
+          providerName:    provider.fullName,
+          customerName:    booking.customerName,
+          serviceCategory: booking.serviceCategory,
+          rating,
+          avgRating,
+          totalReviews,
+        });
+        await sendEmail({
+          to: provider.email,
+          subject,
+          html,
+          checkProviderEmail: provider.email, // ✅ OFF nam email noyawanawa
+        });
+      } catch (emailErr) {
+        console.error('📧 Rating email failed (non-blocking):', emailErr.message);
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Rating දෙන්න ස්තූතියි! ⭐',
-      rating,
-    });
+    return NextResponse.json({ success: true, message: 'Rating දෙන්න ස්තූතියි! ⭐', rating });
 
   } catch (err) {
     console.error('Rate error:', err);
