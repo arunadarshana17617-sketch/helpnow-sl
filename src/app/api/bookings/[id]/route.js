@@ -52,7 +52,7 @@ export async function PATCH(request, { params }) {
       try {
         if (status === 'confirmed') {
           // Customer ට — emailAlerts check naha (customer side)
-          const { subject, html } = bookingConfirmedEmailToCustomer({
+          const { subject, html } = bookingConfirmedEmailToCustomer({ bookingId: booking._id.toString(),
             customerName:    booking.customerName,
             providerName:    provider.fullName,
             providerPhone:   provider.phone,
@@ -66,7 +66,7 @@ export async function PATCH(request, { params }) {
           await sendEmail({ to: booking.customerEmail, subject, html });
 
         } else if (status === 'in_progress') {
-          const { subject, html } = bookingInProgressEmailToCustomer({
+          const { subject, html } = bookingInProgressEmailToCustomer({ bookingId: booking._id.toString(),
             customerName:    booking.customerName,
             providerName:    provider.fullName,
             serviceCategory: booking.serviceCategory,
@@ -75,7 +75,7 @@ export async function PATCH(request, { params }) {
           await sendEmail({ to: booking.customerEmail, subject, html });
 
         } else if (status === 'completed') {
-          const { subject, html } = bookingCompletedEmailToCustomer({
+          const { subject, html } = bookingCompletedEmailToCustomer({ bookingId: booking._id.toString(),
             customerName:    booking.customerName,
             providerName:    provider.fullName,
             serviceCategory: booking.serviceCategory,
@@ -89,7 +89,7 @@ export async function PATCH(request, { params }) {
 
           // Customer ට
           const c = bookingCancelledEmail({
-            recipientName:   booking.customerName,
+            recipientName: booking.customerName, isProvider: false,
             otherPartyName:  provider.fullName,
             serviceCategory: booking.serviceCategory,
             preferredDate:   booking.preferredDate,
@@ -100,7 +100,7 @@ export async function PATCH(request, { params }) {
 
           // Provider ට — emailAlerts check karanawa
           const p = bookingCancelledEmail({
-            recipientName:   provider.fullName,
+            recipientName: provider.fullName, isProvider: true,
             otherPartyName:  booking.customerName,
             serviceCategory: booking.serviceCategory,
             preferredDate:   booking.preferredDate,

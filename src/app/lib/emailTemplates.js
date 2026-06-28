@@ -72,7 +72,7 @@ export function bookingRequestEmailToProvider({ providerName, customerName, cust
           <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
           <p style="margin:0;color:#78350f;">${jobDescription}</p>
         </div>
-        ${ctaButton('✅ View & Confirm Booking', `${appUrl}/partner/dashboard`, '#16a34a')}
+        ${ctaButton('✅ Go to Dashboard', `${appUrl}/partner/dashboard`, '#16a34a')}
         <p style="color:#9ca3af;font-size:13px;text-align:center;">Please respond within 24 hours to avoid cancellation.</p>
       `
     })
@@ -82,7 +82,7 @@ export function bookingRequestEmailToProvider({ providerName, customerName, cust
 // ─────────────────────────────────────────────────────────
 // 2️⃣  Customer ට — Provider confirmed කළාම
 // ─────────────────────────────────────────────────────────
-export function bookingConfirmedEmailToCustomer({ customerName, providerName, providerPhone, providerEmail, serviceCategory, preferredDate, estimatedDays, dailyRate, jobDescription }) {
+export function bookingConfirmedEmailToCustomer({ customerName, providerName, providerPhone, providerEmail, serviceCategory, preferredDate, estimatedDays, dailyRate, jobDescription, bookingId }) {
   const total = (dailyRate * estimatedDays).toLocaleString();
   return {
     subject: `✅ Booking Confirmed — ${providerName} will help you!`,
@@ -114,7 +114,10 @@ export function bookingConfirmedEmailToCustomer({ customerName, providerName, pr
           <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
           <p style="margin:0;color:#78350f;">${jobDescription}</p>
         </div>
-        ${ctaButton('📋 View My Bookings', `${appUrl}/bookings`, '#2563eb')}
+        <div style="text-align:center;margin:25px 0;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          ${ctaButton('📋 View My Bookings', `${appUrl}/bookings`, '#2563eb')}
+          ${bookingId ? ctaButton('✅ View This Booking', `${appUrl}/customer/booking?id=${bookingId}`, '#16a34a') : ''}
+        </div>
       `
     })
   };
@@ -123,7 +126,7 @@ export function bookingConfirmedEmailToCustomer({ customerName, providerName, pr
 // ─────────────────────────────────────────────────────────
 // 3️⃣  Customer ට — Work in_progress වුනාම
 // ─────────────────────────────────────────────────────────
-export function bookingInProgressEmailToCustomer({ customerName, providerName, serviceCategory, jobDescription }) {
+export function bookingInProgressEmailToCustomer({ customerName, providerName, serviceCategory, jobDescription, bookingId }) {
   return {
     subject: `🔧 Work Started — ${providerName} is on the way!`,
     html: baseLayout({
@@ -136,7 +139,10 @@ export function bookingInProgressEmailToCustomer({ customerName, providerName, s
           <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
           <p style="margin:0;color:#78350f;">${jobDescription}</p>
         </div>
-        ${ctaButton('📋 Track My Booking', `${appUrl}/bookings`, '#d97706')}
+        <div style="text-align:center;margin:25px 0;">
+          ${ctaButton('📋 View My Bookings', `${appUrl}/bookings`, '#d97706')}
+          ${bookingId ? ctaButton('🔍 Track This Booking', `${appUrl}/customer/booking?id=${bookingId}`, '#f59e0b') : ''}
+        </div>
       `
     })
   };
@@ -145,7 +151,7 @@ export function bookingInProgressEmailToCustomer({ customerName, providerName, s
 // ─────────────────────────────────────────────────────────
 // 4️⃣  Customer ට — Job completed වුනාම + rate කරන්න
 // ─────────────────────────────────────────────────────────
-export function bookingCompletedEmailToCustomer({ customerName, providerName, serviceCategory, bookingId, estimatedDays, dailyRate }) {
+export function bookingCompletedEmailToCustomer({ customerName, providerName, serviceCategory, estimatedDays, dailyRate, bookingId }) {
   const total = (dailyRate * estimatedDays).toLocaleString();
   return {
     subject: `🎉 Job Completed — Please rate ${providerName}`,
@@ -167,7 +173,10 @@ export function bookingCompletedEmailToCustomer({ customerName, providerName, se
           <p style="margin:0 0 10px;color:#86198f;font-size:15px;font-weight:bold;">⭐ How was the service?</p>
           <p style="margin:0;color:#a21caf;">Your review helps others find great providers!</p>
         </div>
-        ${ctaButton('⭐ Rate Your Experience', `${appUrl}/bookings`, '#7c3aed')}
+        <div style="text-align:center;margin:25px 0;">
+          ${ctaButton('📋 View My Bookings', `${appUrl}/bookings`, '#7c3aed')}
+          ${bookingId ? ctaButton('⭐ Rate This Booking', `${appUrl}/customer/booking?id=${bookingId}`, '#a855f7') : ''}
+        </div>
       `
     })
   };
@@ -176,7 +185,7 @@ export function bookingCompletedEmailToCustomer({ customerName, providerName, se
 // ─────────────────────────────────────────────────────────
 // 5️⃣  දෙන්නාටම — Booking cancelled වුනාම
 // ─────────────────────────────────────────────────────────
-export function bookingCancelledEmail({ recipientName, otherPartyName, serviceCategory, preferredDate, jobDescription, cancelledBy }) {
+export function bookingCancelledEmail({ recipientName, otherPartyName, serviceCategory, preferredDate, jobDescription, cancelledBy, bookingId, isProvider }) {
   return {
     subject: `❌ Booking Cancelled — ${serviceCategory}`,
     html: baseLayout({
@@ -197,7 +206,11 @@ export function bookingCancelledEmail({ recipientName, otherPartyName, serviceCa
           <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
           <p style="margin:0;color:#78350f;">${jobDescription}</p>
         </div>
-        ${ctaButton('🔍 Find Another Provider', `${appUrl}`, '#dc2626')}
+        <div style="text-align:center;margin:25px 0;">
+          ${isProvider
+            ? ctaButton('📊 Go to Dashboard', `${appUrl}/partner/dashboard`, '#dc2626')
+            : ctaButton('🔍 Find Another Provider', `${appUrl}`, '#dc2626')}
+        </div>
       `
     })
   };
