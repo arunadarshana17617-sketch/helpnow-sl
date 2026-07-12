@@ -217,6 +217,182 @@ export function bookingCancelledEmail({ recipientName, otherPartyName, serviceCa
 }
 
 // ─────────────────────────────────────────────────────────
+// 7️⃣  Provider ට — Job එකක් complete වුනාම commission deduct report එක
+// ─────────────────────────────────────────────────────────
+export function commissionDeductedEmailToProvider({ providerName, customerName, serviceCategory, totalAmount, commissionRate, commissionAmount, providerEarning, periodLabel }) {
+  return {
+    subject: `💰 Job Earnings — Rs. ${providerEarning?.toLocaleString()} credited (${serviceCategory})`,
+    html: baseLayout({
+      headerColor: '#0f766e',
+      headerTitle: '💰 Earnings Report',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Your job for <strong>${customerName}</strong> (${serviceCategory}) has been marked complete. Here's the breakdown:</p>
+        <div style="background:#f0fdfa;border-left:4px solid #0f766e;padding:15px;border-radius:4px;margin:20px 0;">
+          ${infoTable([
+            ['Total Job Amount', `Rs. ${totalAmount?.toLocaleString()}`],
+            ['Platform Commission', `${commissionRate}% (Rs. ${commissionAmount?.toLocaleString()})`],
+            ['Your Earning', `Rs. ${providerEarning?.toLocaleString()}`],
+            ['Billing Period', periodLabel],
+          ])}
+        </div>
+        <p style="color:#6b7280;font-size:13px;">This commission has been added to your <strong>${periodLabel}</strong> bill. You'll get a reminder before it's due.</p>
+        ${ctaButton('📊 View Billing', `${appUrl}/partner/billing`, '#0f766e')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 8️⃣  Provider ට — Mase eka close unama, bill eka due kiyala
+// ─────────────────────────────────────────────────────────
+export function monthlyBillEmailToProvider({ providerName, periodLabel, totalJobsCompleted, totalRevenue, commissionAmount, dueDate }) {
+  return {
+    subject: `🧾 Your ${periodLabel} Bill — Rs. ${commissionAmount?.toLocaleString()} due ${formatDate(dueDate)}`,
+    html: baseLayout({
+      headerColor: '#b45309',
+      headerTitle: '🧾 Monthly Commission Bill',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Your commission bill for <strong>${periodLabel}</strong> is now ready.</p>
+        <div style="background:#fffbeb;border-left:4px solid #b45309;padding:15px;border-radius:4px;margin:20px 0;">
+          ${infoTable([
+            ['Jobs Completed', `${totalJobsCompleted}`],
+            ['Total Revenue', `Rs. ${totalRevenue?.toLocaleString()}`],
+            ['Amount Due', `Rs. ${commissionAmount?.toLocaleString()}`],
+            ['Due Date', formatDate(dueDate)],
+          ])}
+        </div>
+        <p style="color:#dc2626;font-size:13px;"><strong>Note:</strong> Unpaid bills past the due date may result in your account being temporarily suspended.</p>
+        ${ctaButton('💳 Pay Now', `${appUrl}/partner/billing`, '#b45309')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 9️⃣  Provider ට — Due date lagai kiyala reminder eka (5 days before)
+// ─────────────────────────────────────────────────────────
+export function billingReminderEmailToProvider({ providerName, periodLabel, commissionAmount, dueDate }) {
+  return {
+    subject: `⏰ Reminder: Rs. ${commissionAmount?.toLocaleString()} due in a few days`,
+    html: baseLayout({
+      headerColor: '#dc2626',
+      headerTitle: '⏰ Payment Reminder',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Just a reminder — your <strong>${periodLabel}</strong> commission bill is due soon. Please pay before the due date to keep your account active.</p>
+        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:15px;border-radius:4px;margin:20px 0;">
+          ${infoTable([
+            ['Amount Due', `Rs. ${commissionAmount?.toLocaleString()}`],
+            ['Due Date', formatDate(dueDate)],
+          ])}
+        </div>
+        ${ctaButton('💳 Pay Now', `${appUrl}/partner/billing`, '#dc2626')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 🔟  Provider ට — Account suspend unama
+// ─────────────────────────────────────────────────────────
+export function accountSuspendedEmailToProvider({ providerName, periodLabel, commissionAmount }) {
+  return {
+    subject: `🚫 Account Suspended — Unpaid Bill (${periodLabel})`,
+    html: baseLayout({
+      headerColor: '#7f1d1d',
+      headerTitle: '🚫 Account Suspended',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Your account has been temporarily suspended because your <strong>${periodLabel}</strong> commission bill of <strong>Rs. ${commissionAmount?.toLocaleString()}</strong> was not paid by the due date.</p>
+        <p style="color:#6b7280;">You will not receive new bookings until this is settled. Please pay now to reactivate your account immediately.</p>
+        ${ctaButton('💳 Pay Now to Reactivate', `${appUrl}/partner/billing`, '#7f1d1d')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 1️⃣1️⃣  Provider ට — Payment confirmed
+// ─────────────────────────────────────────────────────────
+export function paymentConfirmedEmailToProvider({ providerName, periodLabel, commissionAmount, paymentMethod }) {
+  return {
+    subject: `✅ Payment Received — ${periodLabel}`,
+    html: baseLayout({
+      headerColor: '#16a34a',
+      headerTitle: '✅ Payment Confirmed',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">We've received your payment of <strong>Rs. ${commissionAmount?.toLocaleString()}</strong> for <strong>${periodLabel}</strong> via <strong>${paymentMethod === 'payhere' ? 'Online Payment' : 'Bank Transfer'}</strong>. Your account is active. Thank you!</p>
+        ${ctaButton('📊 View Billing', `${appUrl}/partner/billing`, '#16a34a')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 1️⃣2️⃣  Admin ට — Monthly commission summary report
+// ─────────────────────────────────────────────────────────
+export function monthlySummaryEmailToAdmin({ periodLabel, totalProviders, totalCommission, breakdown = [] }) {
+  const rows = breakdown.slice(0, 20).map(b => `
+    <tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${b.providerName}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${b.totalJobsCompleted}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">Rs. ${b.commissionAmount?.toLocaleString()}</td>
+    </tr>`).join('');
+
+  return {
+    subject: `📊 Monthly Commission Report — ${periodLabel}`,
+    html: baseLayout({
+      headerColor: '#1e3a8a',
+      headerTitle: '📊 Monthly Commission Report',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi Admin,</p>
+        <p style="color:#6b7280;">Here's the commission summary for <strong>${periodLabel}</strong>.</p>
+        <div style="background:#eff6ff;border-left:4px solid #1e3a8a;padding:15px;border-radius:4px;margin:20px 0;">
+          ${infoTable([
+            ['Providers Billed', `${totalProviders}`],
+            ['Total Commission', `Rs. ${totalCommission?.toLocaleString()}`],
+          ])}
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="background:#f3f4f6;">
+            <th style="padding:6px 8px;text-align:left;">Provider</th>
+            <th style="padding:6px 8px;text-align:right;">Jobs</th>
+            <th style="padding:6px 8px;text-align:right;">Commission</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${ctaButton('🧾 View Full Billing', `${appUrl}/admin`, '#1e3a8a')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 1️⃣3️⃣  Admin ට — Bank transfer proof එකක් submit unama
+// ─────────────────────────────────────────────────────────
+export function bankProofSubmittedEmailToAdmin({ providerName, periodLabel, commissionAmount, referenceNumber }) {
+  return {
+    subject: `🏦 Bank Transfer Proof Submitted — ${providerName}`,
+    html: baseLayout({
+      headerColor: '#4338ca',
+      headerTitle: '🏦 Payment Proof Submitted',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi Admin,</p>
+        <p style="color:#6b7280;"><strong>${providerName}</strong> has submitted a bank transfer proof for their <strong>${periodLabel}</strong> bill. Please verify.</p>
+        ${infoTable([
+          ['Amount', `Rs. ${commissionAmount?.toLocaleString()}`],
+          ['Reference No.', referenceNumber || '—'],
+        ])}
+        ${ctaButton('🔍 Review & Verify', `${appUrl}/admin`, '#4338ca')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
 // 6️⃣  Provider ට — Customer rating දුන්නාම
 // ─────────────────────────────────────────────────────────
 export function newRatingEmailToProvider({ providerName, customerName, serviceCategory, rating, avgRating, totalReviews }) {

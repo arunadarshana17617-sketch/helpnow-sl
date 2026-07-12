@@ -9,10 +9,10 @@ import {
   Clock, Megaphone, Banknote, Calendar, Loader2, AlertCircle, TrendingUp,
   Briefcase, CheckCircle2, XCircle, ArrowLeft, RefreshCw, BadgeCheck,
   Eye, Phone, MapPin, ClipboardList, Search, MessageSquareCode, MessageSquare, ThumbsUp,
-  BarChart2, Play, Navigation, NavigationOff, Settings, LogOut
+  BarChart2, Play, Navigation, NavigationOff, Settings, LogOut, ShieldAlert
 } from 'lucide-react';
 
-// ── Notification Dropdown (Facebook Style) ──────────────────────
+// ── Notification Dropdown Component ─────────────────────────────
 function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMarkAllRead, language }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -221,19 +221,28 @@ export default function PartnerDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Live Language sync state [3]
+  // Live Language sync state
   const [language, setLanguage] = useState('en');
+
+  // Billing lockout and manual bank slip upload states
+  const [overdueBill, setOverdueBill] = useState(null);
+  const [bankSlipRef, setBankSlipRef] = useState('');
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState(null);
+
+  // Interactive Partial Payment Custom Amount Input State
+  const [customPayAmount, setCustomPayAmount] = useState('');
 
   useEffect(() => { if (status === 'unauthenticated') router.push('/'); }, [status]);
   useEffect(() => { if (status === 'authenticated') {
     fetchDashboardData();
     fetchNotifications();
 
-    // Set saved language state [3]
+    // Set saved language state
     const savedLang = localStorage.getItem('helpnow_lang') || 'en';
     setLanguage(savedLang);
 
-    // Sync language automatically when changed in settings tab [3]
+    // Sync language automatically when changed in settings tab
     const syncLang = () => setLanguage(localStorage.getItem('helpnow_lang') || 'en');
     window.addEventListener('storage', syncLang);
     return () => window.removeEventListener('storage', syncLang);
@@ -259,19 +268,38 @@ export default function PartnerDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [profileRes, earningsRes, bookingsRes] = await Promise.all([
+      const [profileRes, earningsRes, bookingsRes, billingRes] = await Promise.all([
         fetch('/api/partner/profile'),
         fetch('/api/partner/earnings'),
-        fetch('/api/partner/bookings')
+        fetch('/api/partner/bookings'),
+        fetch('/api/partner/billing') 
       ]);
 
       const profileJson = await profileRes.json();
       const earningsJson = await earningsRes.json();
       const bookingsJson = await bookingsRes.json();
+      const billingJson = await billingRes.json();
 
       if (profileJson.success) setProvider(profileJson.provider);
       if (earningsJson.success) setEarningsData(earningsJson);
       if (bookingsJson.success) setBookings(bookingsJson.bookings);
+      
+      if (billingJson.success) {
+        const overdueInvoice = billingJson.bills.find(b => b.status === 'overdue' && b.balanceDue > 0);
+        if (overdueInvoice) {
+          setOverdueBill(overdueInvoice);
+          setCustomPayAmount(overdueInvoice.balanceDue.toString()); 
+        } else {
+          setOverdueBill(null);
+        }
+      }
+
+      // Load platform bank account details dynamically
+      const adminBillingRes = await fetch('/api/admin/billing');
+      const adminBillingJson = await adminBillingRes.json();
+      if (adminBillingJson.success && adminBillingJson.settings) {
+        setPlatformSettings(adminBillingJson.settings);
+      }
 
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -320,7 +348,7 @@ export default function PartnerDashboard() {
     }
   };
 
-  // Dynamic Service ON/OFF Toggle Handler inside main Dashboard [2]
+  // Dynamic Service ON/OFF Toggle Handler inside main Dashboard
   const handleServiceToggle = async (serviceId, currentStatus) => {
     setTogglingServiceId(serviceId);
     try {
@@ -335,12 +363,105 @@ export default function PartnerDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        await fetchDashboardData(); // Instantly refreshes stats & service state [2]
+        await fetchDashboardData(); 
       } else {
         alert(data.error || 'Failed to toggle service');
       }
     } catch (err) {
       alert('Error updating service status');
+    } finally {
+      setTogglingServiceId(null);
+    }
+  };
+
+  const handlePayHereCheckout = async () => {
+    const payAmt = parseFloat(customPayAmount);
+    if (isNaN(payAmt) || payAmt <= 0) {
+      alert('Please specify a valid payment amount.');
+      return;
+    }
+    if (payAmt > overdueBill.balanceDue) {
+      alert(`Amount exceeds outstanding remaining balance of LKR ${overdueBill.balanceDue.toLocaleString()}`);
+      return;
+    }
+
+    setTogglingServiceId(overdueBill._id);
+    try {
+      const hashRes = await fetch('/api/partner/payhere/hash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billingId: overdueBill._id, amount: payAmt })
+      });
+      const hashJson = await hashRes.json();
+      
+      if (!hashRes.ok || !hashJson.success) {
+        throw new Error(hashJson.error || 'Signature hash failed');
+      }
+
+      const params = hashJson.payhereParams;
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = params.sandbox ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+      
+      Object.entries(params).forEach(([key, value]) => {
+        if (key !== 'sandbox') {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        }
+      });
+      
+      document.body.appendChild(form);
+      form.submit(); 
+    } catch (err) {
+      alert(err.message || 'PayHere checkout failed');
+    } finally {
+      setTogglingServiceId(null);
+    }
+  };
+
+  const handleBankSlipSubmit = async (e) => {
+    e.preventDefault();
+    const payAmt = parseFloat(customPayAmount);
+    
+    if (isNaN(payAmt) || payAmt <= 0) {
+      alert('Please specify a valid payment amount.');
+      return;
+    }
+    if (payAmt > overdueBill.balanceDue) {
+      alert(`Amount exceeds outstanding remaining balance of LKR ${overdueBill.balanceDue.toLocaleString()}`);
+      return;
+    }
+    if (!bankSlipRef.trim()) {
+      alert('Please enter a bank deposit reference number.');
+      return;
+    }
+
+    setTogglingServiceId(overdueBill._id);
+    try {
+      const res = await fetch('/api/partner/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          billingId: overdueBill._id,
+          amount: payAmt, 
+          paymentMethod: 'bank_transfer',
+          paymentReference: bankSlipRef.trim(),
+          paymentProofUrl: 'https://cloudinary.com/placeholder-slip.png' 
+        })
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setPaymentSuccess(true);
+      } else {
+        alert(json.error || 'Failed to submit slip');
+      }
+    } catch {
+      alert('Network issue uploading receipt');
     } finally {
       setTogglingServiceId(null);
     }
@@ -386,7 +507,8 @@ export default function PartnerDashboard() {
     totalBookings: bookings.length,
     activeJobs: bookings.filter(b => b.status === 'in_progress').length,
     waitingJobs: bookings.filter(b => b.status === 'pending' || b.status === 'confirmed').length,
-    totalEarnings: bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + ((b.dailyRate || 0) * (b.estimatedDays || 1)), 0)
+    totalGrossValue: bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + ((b.dailyRate || 0) * (b.estimatedDays || 1)), 0),
+    totalNetEarnings: bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + ((b.dailyRate || 0) * (b.estimatedDays || 1)), 0)
   };
 
   // Group bookings to auto-calculate real Top Clients dynamically
@@ -417,7 +539,7 @@ export default function PartnerDashboard() {
     return matchesSearch && matchesStatus;
   });
 
-  // Localized Labels Dictionary [3]
+  // Localized Labels Dictionary
   const labels = {
     en: {
       dashboard: "Dashboard",
@@ -527,6 +649,149 @@ export default function PartnerDashboard() {
     cancelled: { label: language === 'si' ? 'අවලංගු කල' : 'Cancelled', sColor: 'bg-rose-100 text-rose-800 border-rose-200' }
   };
 
+  // ── ✅ PICKME/UBER-STYLE FULL SCREEN LOCKOUT OVERLAY (WITH PARTIAL PAYMENTS) ── [2]
+  if (overdueBill) {
+    const outstandingAmount = overdueBill.commissionAmount || 0;
+    const balanceRemaining = overdueBill.balanceDue !== undefined ? overdueBill.balanceDue : outstandingAmount;
+    const totalSettled = outstandingAmount - balanceRemaining;
+    
+    return (
+      <div className="fixed inset-0 bg-[#0f172a] z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-center relative">
+          
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2 animate-bounce">
+            <ShieldAlert size={36} />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+              {language === 'si' ? 'ඔබගේ ගිණුම අත්හිටුවා ඇත' : 'Account Suspended'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              {language === 'si' 
+                ? `පසුගිය කාලයට අදාළ ප්ලැට්ෆෝම් සේවා ගාස්තු ගෙවීම් පැහැර හැරීම නිසා ඔයාගේ ගිණුම තාවකාලිකව අත්හිටුවා තියෙනවා. දිගටම සේවා සැපයීම සඳහා කරුණාකර සම්පූර්ණ මුදල හෝ පහතින් ඔබට ගෙවිය හැකි අර්ධ මුදලක් (LKR amount) ටයිප් කර ගෙවීම් සිදු කරන්න.`
+                : `Your account has been temporarily suspended due to outstanding platform service fees. Please settle the total invoice or enter a custom partial amount below to restore workspace access.`}
+            </p>
+          </div>
+
+          {/* Outstanding Bill info badge */}
+          <div className="grid grid-cols-3 gap-2 bg-red-50/60 p-4 rounded-xl text-center border border-red-100/40">
+            <div>
+              <span className="text-[8px] font-bold text-slate-400 uppercase">Total Owed</span>
+              <p className="text-sm font-black text-slate-800 mt-1">LKR {(overdueBill.commissionAmount || 0).toLocaleString()}</p>
+            </div>
+            <div className="border-x border-red-200/50">
+              <span className="text-[8px] font-bold text-emerald-500 uppercase">Paid So Far</span>
+              <p className="text-sm font-black text-emerald-600 mt-1">LKR {((overdueBill.commissionAmount || 0) - (overdueBill.balanceDue || 0)).toLocaleString()}</p>
+            </div>
+            <div>
+              <span className="text-[8px] font-bold text-red-500 uppercase">Remaining Due</span>
+              <p className="text-sm font-black text-red-600 mt-1">LKR {(overdueBill.balanceDue || 0).toLocaleString()}</p>
+            </div>
+          </div>
+
+          {paymentSuccess ? (
+            <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-xl text-center space-y-3">
+              <CheckCircle2 size={32} className="text-emerald-500 mx-auto animate-pulse" />
+              <h4 className="font-bold text-emerald-800 text-sm">Slip Receipt Uploaded Successfully!</h4>
+              <p className="text-xs text-emerald-600 leading-relaxed">
+                We have received your partial payment bank transfer slip. Our admin team is verifying your payment. Your suspension will be reviewed and account restored once approved. Thank you!
+              </p>
+              <button onClick={() => { setPaymentSuccess(false); setBankSlipRef(''); fetchDashboardData(); }} className="mt-2 text-xs text-emerald-600 underline font-semibold">Upload another slip</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5">
+              
+              {/* ✅ Custom Partial Payment Amount Input field [2] */}
+              <div className="text-left bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Enter Amount to Pay (LKR)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={overdueBill.balanceDue || overdueBill.commissionAmount}
+                  value={customPayAmount}
+                  onChange={(e) => setCustomPayAmount(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm text-black font-semibold"
+                  placeholder={`Max: LKR ${(overdueBill.balanceDue || overdueBill.commissionAmount || 0).toLocaleString()}`}
+                  required
+                />
+              </div>
+
+              {/* Option 1: Pay Online via PayHere */}
+              <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 text-left space-y-3.5">
+                <div className="flex items-center gap-2 text-orange-600">
+                  <Banknote size={16} />
+                  <span className="font-bold text-xs uppercase tracking-wide">Option 1: Pay Online Instantly</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Settle your bills instantly online using your Credit/Debit Card or mobile wallets via secure PayHere checkout. Your account will be restored automatically.
+                </p>
+                
+                <button
+                  onClick={handlePayHereCheckout}
+                  disabled={togglingServiceId === overdueBill._id}
+                  className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-extrabold rounded-xl transition text-xs shadow-md hover:shadow-lg flex items-center justify-center gap-1.5"
+                >
+                  {togglingServiceId === overdueBill._id ? <Loader2 size={14} className="animate-spin" /> : `Pay LKR ${parseFloat(customPayAmount || '0').toLocaleString()} Online`}
+                </button>
+              </div>
+
+              {/* Option 2: Pay via Manual Bank Deposit Slip Upload */}
+              {platformSettings && (
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-left space-y-3.5">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <ClipboardList size={16} />
+                    <span className="font-bold text-xs uppercase tracking-wide">Option 2: Direct Bank Deposit / Transfer</span>
+                  </div>
+                  
+                  {/* Admin Bank Details card */}
+                  <div className="bg-white p-3 rounded-lg border border-slate-200/60 space-y-1.5 text-[10px] text-slate-600">
+                    <p><strong>Bank Name:</strong> {platformSettings.bankDetails?.bankName}</p>
+                    <p><strong>Branch:</strong> {platformSettings.bankDetails?.branch}</p>
+                    <p><strong>Account Number:</strong> {platformSettings.bankDetails?.accountNumber}</p>
+                    <p><strong>Account Holder:</strong> {platformSettings.bankDetails?.accountName}</p>
+                  </div>
+
+                  {/* Slip Upload form */}
+                  <form onSubmit={handleBankSlipSubmit} className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Enter Bank Slip Reference Number</label>
+                      <input
+                        type="text"
+                        placeholder="Enter transaction ref / receipt ID..."
+                        value={bankSlipRef}
+                        onChange={(e) => setBankSlipRef(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs text-black font-semibold"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={togglingServiceId === overdueBill._id}
+                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition text-xs shadow"
+                    >
+                      {togglingServiceId === overdueBill._id ? 'Uploading...' : `Submit Deposit Receipt (LKR ${parseFloat(customPayAmount || '0').toLocaleString()})`}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* Exit Link to go back to homepage */}
+          <div className="pt-2 border-t text-center">
+            <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 font-bold transition">
+              <LogOut size={12} /> {labels.exit} Workspace
+            </Link>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     // ✅ restricted parent height & hidden scroll to create shell
     <div className="h-screen w-screen bg-[#f7f8fc] flex overflow-hidden">
@@ -632,6 +897,7 @@ export default function PartnerDashboard() {
 
         {/* ── VIEW 1: DASHBOARD VIEW ── */}
         {activeView === 'dashboard' && (
+          // ✅ overflow-y-auto isolated scroll for workspace
           <main className="flex-1 p-4 lg:p-6 overflow-y-auto space-y-6">
 
             {/* Hero premium orange gradient banner */}
@@ -682,7 +948,9 @@ export default function PartnerDashboard() {
               <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{labels.totalEarnings}</p>
-                  <p className="text-2xl font-black text-gray-900 mt-1">Rs {realStats.totalEarnings.toLocaleString()}</p>
+                  <p className="text-2xl font-black text-gray-900 mt-1">
+                    Rs {(realStats.totalNetEarnings !== undefined ? realStats.totalNetEarnings : (realStats.totalGrossValue || 0)).toLocaleString()}
+                  </p>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
                   <Banknote size={16} />
@@ -737,7 +1005,7 @@ export default function PartnerDashboard() {
                         <line x1="0" y1="90" x2="500" y2="90" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
                         <line x1="0" y1="120" x2="500" y2="120" stroke="#e2e8f0" strokeWidth="1" />
 
-                        {/* ✅ Strong Orange Curve - Monthly Earnings */}
+                        {/* ✅ Strong Orange Curve */}
                         <path d={`M 0 ${120 - ((monthlyEntries[0]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
                                  L 100 ${120 - ((monthlyEntries[1]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
                                  L 200 ${120 - ((monthlyEntries[2]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
@@ -754,7 +1022,7 @@ export default function PartnerDashboard() {
                                  L 500 ${120 - ((monthlyEntries[5]?.[1]?.earnings || 0) / maxEarningsValue) * 120}`} 
                               fill="none" stroke="#f97316" strokeWidth="2.5" />
 
-                        {/* ✅ Soft Orange Curve - Monthly Jobs count */}
+                        {/* ✅ Soft Orange Curve */}
                         <path d={`M 0 ${120 - ((monthlyEntries[0]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
                                  L 100 ${120 - ((monthlyEntries[1]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
                                  L 200 ${120 - ((monthlyEntries[2]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
@@ -791,7 +1059,7 @@ export default function PartnerDashboard() {
                     </button>
                   </div>
 
-                  {/* Desktop View (visible on large screens) */}
+                  {/* Desktop View */}
                   <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left text-[10px]">
                       <thead>
@@ -843,7 +1111,7 @@ export default function PartnerDashboard() {
                     </table>
                   </div>
 
-                  {/* ✅ Mobile Responsive Card View (visible only on small screens) [1] */}
+                  {/* Mobile Responsive Card View */}
                   <div className="block sm:hidden divide-y divide-slate-100">
                     {bookings.length > 0 ? (
                       bookings.slice(0, 5).map((booking) => {
@@ -891,7 +1159,7 @@ export default function PartnerDashboard() {
               <div className="col-span-12 lg:col-span-4 space-y-5">
                 <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex flex-col h-full">
                   <div className="flex items-center justify-between mb-3 border-b pb-2">
-                    <h4 className="font-bold text-gray-900 text-xs">{labels.activeServices}</h4>
+                    <h4 className="font-bold text-gray-900 text-xs">Active Services</h4>
                     {/* ✅ manageServices orange button styled */}
                     <button onClick={() => router.push('/partner/profile')} className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-bold px-2.5 py-1 rounded-lg transition shadow-sm">
                       {labels.manageServices}
@@ -917,7 +1185,6 @@ export default function PartnerDashboard() {
                             </div>
                           </div>
 
-                          {/* ── LIVE INTERACTIVE Toggle Switch on Dashboard [2] ── */}
                           <div className="flex items-center gap-2">
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${srv.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                               {srv.isActive ? labels.activeLabel : labels.pausedLabel}
@@ -1057,7 +1324,7 @@ export default function PartnerDashboard() {
                       onClick={() => setStatusFilter(tab)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${
                         statusFilter === tab
-                          ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                          ? 'bg-orange-50 text-white border-orange-500 shadow-sm'
                           : 'bg-slate-50 text-slate-600 border-gray-200 hover:border-orange-200'
                       }`}
                     >
@@ -1242,6 +1509,147 @@ export default function PartnerDashboard() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ✅ PICKME/UBER-STYLE FULL SCREEN LOCKOUT OVERLAY (WITH PARTIAL PAYMENTS) ── [2] */}
+      {overdueBill && (
+        <div className="fixed inset-0 bg-[#0f172a] z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-center relative">
+            
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2 animate-bounce">
+              <ShieldAlert size={36} />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                {language === 'si' ? 'ඔබගේ ගිණුම අත්හිටුවා ඇත' : 'Account Suspended'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                {language === 'si' 
+                  ? `පසුගිය කාලයට අදාළ ප්ලැට්ෆෝම් සේවා ගාස්තු ගෙවීම් පැහැර හැරීම නිසා ඔයාගේ ගිණුම තාවකාලිකව අත්හිටුවා තියෙනවා. දිගටම සේවා සැපයීම සඳහා කරුණාකර සම්පූර්ණ මුදල හෝ පහතින් ඔබට ගෙවිය හැකි අර්ධ මුදලක් (LKR amount) ටයිප් කර ගෙවීම් සිදු කරන්න.`
+                  : `Your account has been temporarily suspended due to outstanding platform service fees. Please settle the total invoice or enter a custom partial amount below to restore workspace access.`}
+              </p>
+            </div>
+
+            {/* Outstanding Bill info badge */}
+            <div className="grid grid-cols-3 gap-2 bg-red-50/60 p-4 rounded-xl text-center border border-red-100/40">
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 uppercase">Total Owed</span>
+                {/* ✅ Added dynamic safe checking for commissionAmount value */}
+                <p className="text-sm font-black text-slate-800 mt-1">LKR {(overdueBill.commissionAmount || 0).toLocaleString()}</p>
+              </div>
+              <div className="border-x border-red-200/50">
+                <span className="text-[8px] font-bold text-emerald-500 uppercase">Paid So Far</span>
+                {/* ✅ Displays total paid so far computed dynamically */}
+                <p className="text-sm font-black text-emerald-600 mt-1">LKR {((overdueBill.commissionAmount || 0) - (overdueBill.balanceDue || 0)).toLocaleString()}</p>
+              </div>
+              <div>
+                <span className="text-[8px] font-bold text-red-500 uppercase">Remaining Due</span>
+                {/* ✅ Displays exact balance due computed dynamically */}
+                <p className="text-sm font-black text-red-600 mt-1">LKR {(overdueBill.balanceDue || 0).toLocaleString()}</p>
+              </div>
+            </div>
+
+            {paymentSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-xl text-center space-y-3">
+                <CheckCircle2 size={32} className="text-emerald-500 mx-auto animate-pulse" />
+                <h4 className="font-bold text-emerald-800 text-sm">Slip Receipt Uploaded Successfully!</h4>
+                <p className="text-xs text-emerald-600 leading-relaxed">
+                  We have received your partial payment bank transfer slip. Our admin team is verifying your payment. Your suspension will be reviewed and account restored once approved. Thank you!
+                </p>
+                <button onClick={() => { setPaymentSuccess(false); setBankSlipRef(''); fetchDashboardData(); }} className="mt-2 text-xs text-emerald-600 underline font-semibold">Upload another slip</button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-5">
+                
+                {/* ✅ Custom Partial Payment Amount Input field [2] */}
+                <div className="text-left bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Enter Amount to Pay (LKR)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={overdueBill.balanceDue || overdueBill.commissionAmount}
+                    value={customPayAmount}
+                    onChange={(e) => setCustomPayAmount(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm text-black font-semibold"
+                    placeholder={`Max: LKR ${(overdueBill.balanceDue || overdueBill.commissionAmount || 0).toLocaleString()}`}
+                    required
+                  />
+                </div>
+
+                {/* Option 1: Pay Online via PayHere */}
+                <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 text-left space-y-3.5">
+                  <div className="flex items-center gap-2 text-orange-600">
+                    <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=40&h=40" alt="online" className="hidden" /> {/* prefetch / trigger */}
+                    <Banknote size={16} />
+                    <span className="font-bold text-xs uppercase tracking-wide">Option 1: Pay Online Instantly</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Settle your bills instantly online using your Credit/Debit Card or mobile wallets via secure PayHere checkout. Your account will be restored automatically.
+                  </p>
+                  
+                  <button
+                    onClick={handlePayHereCheckout}
+                    disabled={togglingServiceId === overdueBill._id}
+                    className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-extrabold rounded-xl transition text-xs shadow-md hover:shadow-lg flex items-center justify-center gap-1.5"
+                  >
+                    {togglingServiceId === overdueBill._id ? <Loader2 size={14} className="animate-spin" /> : `Pay LKR ${parseFloat(customPayAmount || '0').toLocaleString()} Online`}
+                  </button>
+                </div>
+
+                {/* Option 2: Pay via Manual Bank Deposit Slip Upload */}
+                {platformSettings && (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-left space-y-3.5">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <ClipboardList size={16} />
+                      <span className="font-bold text-xs uppercase tracking-wide">Option 2: Direct Bank Deposit / Transfer</span>
+                    </div>
+                    
+                    {/* Admin Bank Details card */}
+                    <div className="bg-white p-3 rounded-lg border border-slate-200/60 space-y-1.5 text-[10px] text-slate-600">
+                      <p><strong>Bank Name:</strong> {platformSettings.bankDetails?.bankName}</p>
+                      <p><strong>Branch:</strong> {platformSettings.bankDetails?.branch}</p>
+                      <p><strong>Account Number:</strong> {platformSettings.bankDetails?.accountNumber}</p>
+                      <p><strong>Account Holder:</strong> {platformSettings.bankDetails?.accountName}</p>
+                    </div>
+
+                    {/* Slip Upload form */}
+                    <form onSubmit={handleBankSlipSubmit} className="space-y-3 pt-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Enter Bank Slip Reference Number</label>
+                        <input
+                          type="text"
+                          placeholder="Enter transaction ref / receipt ID..."
+                          value={bankSlipRef}
+                          onChange={(e) => setBankSlipRef(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs text-black font-semibold"
+                          required
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={togglingServiceId === overdueBill._id}
+                        className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition text-xs shadow"
+                      >
+                        {togglingServiceId === overdueBill._id ? 'Uploading...' : `Submit Deposit Receipt (LKR ${parseFloat(customPayAmount || '0').toLocaleString()})`}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* Exit Link to go back to homepage */}
+            <div className="pt-2 border-t text-center">
+              <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 font-bold transition">
+                <LogOut size={12} /> {labels.exit} Workspace
+              </Link>
+            </div>
+
           </div>
         </div>
       )}

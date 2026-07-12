@@ -148,10 +148,38 @@ const ServiceProviderSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
-emailAlerts: {
+  emailAlerts: {
     type: Boolean,
     default: true,
-},
+  },
+
+  // ─────────────────────────────────────────────
+  // 💰 Commission & Billing
+  // ─────────────────────────────────────────────
+  // null = platform default rate use wenawa. Number ekak dunnoth eka witharai apply wenne.
+  commissionRate: {
+    type: Number,
+    default: null,
+    min: 0,
+    max: 100,
+  },
+
+  // 'active' -> normal widihata service denna puluwan
+  // 'suspended' -> bill eka gewala na, service denna barr karala
+  accountStatus: {
+    type: String,
+    enum: ['active', 'suspended'],
+    default: 'active',
+  },
+  suspendedReason: {
+    type: String,
+    default: null,
+  },
+  suspendedAt: {
+    type: Date,
+    default: null,
+  },
+
   // Multiple Services (Fiverr style)
   services: [ServiceSchema],
 

@@ -1,10 +1,10 @@
-// 📁 src/app/api/bookings/[id]/route.js
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import Booking from '@/app/models/Booking';
 import ServiceProvider from '@/app/models/ServiceProvider';
 import { auth } from '@/auth';
 import { sendEmail } from '@/app/lib/mailer';
+import { applyCommissionForBooking } from '@/app/lib/billing'; // ✅ Billing helper Imported
 import {
   bookingConfirmedEmailToCustomer,
   bookingInProgressEmailToCustomer,
@@ -46,13 +46,11 @@ export async function PATCH(request, { params }) {
     const updated = await Booking.findByIdAndUpdate(id, updateFields, { new: true });
 
     // 📧 Email triggers — status change wena hamawelawema
-    // Note: customer emails walata checkProviderEmail naha (customer emailAlerts naha)
-    // Provider tat yawana emails walata checkProviderEmail pass karanawa
     if (status && isProvider) {
       try {
         if (status === 'confirmed') {
-          // Customer ට — emailAlerts check naha (customer side)
-          const { subject, html } = bookingConfirmedEmailToCustomer({ bookingId: booking._id.toString(),
+          const { subject, html } = bookingConfirmedEmailToCustomer({ 
+            bookingId: booking._id.toString(), // ✅ Fixed matching ID variable
             customerName:    booking.customerName,
             providerName:    provider.fullName,
             providerPhone:   provider.phone,
@@ -66,7 +64,8 @@ export async function PATCH(request, { params }) {
           await sendEmail({ to: booking.customerEmail, subject, html });
 
         } else if (status === 'in_progress') {
-          const { subject, html } = bookingInProgressEmailToCustomer({ bookingId: booking._id.toString(),
+          const { subject, html } = bookingInProgressEmailToCustomer({ 
+            bookingId: booking._id.toString(), // ✅ Fixed matching ID variable
             customerName:    booking.customerName,
             providerName:    provider.fullName,
             serviceCategory: booking.serviceCategory,
@@ -75,7 +74,8 @@ export async function PATCH(request, { params }) {
           await sendEmail({ to: booking.customerEmail, subject, html });
 
         } else if (status === 'completed') {
-          const { subject, html } = bookingCompletedEmailToCustomer({ bookingId: booking._id.toString(),
+          const { subject, html } = bookingCompletedEmailToCustomer({ 
+            bookingId: booking._id.toString(), // ✅ Fixed matching ID variable
             customerName:    booking.customerName,
             providerName:    provider.fullName,
             serviceCategory: booking.serviceCategory,
@@ -87,7 +87,6 @@ export async function PATCH(request, { params }) {
         } else if (status === 'cancelled') {
           const cancelledBy = provider.fullName;
 
-          // Customer ට
           const c = bookingCancelledEmail({
             recipientName: booking.customerName, isProvider: false,
             otherPartyName:  provider.fullName,
@@ -98,7 +97,6 @@ export async function PATCH(request, { params }) {
           });
           await sendEmail({ to: booking.customerEmail, ...c });
 
-          // Provider ට — emailAlerts check karanawa
           const p = bookingCancelledEmail({
             recipientName: provider.fullName, isProvider: true,
             otherPartyName:  booking.customerName,
@@ -110,7 +108,7 @@ export async function PATCH(request, { params }) {
           await sendEmail({
             to: provider.email,
             ...p,
-            checkProviderEmail: provider.email, // ✅
+            checkProviderEmail: provider.email, 
           });
         }
 
@@ -120,7 +118,7 @@ export async function PATCH(request, { params }) {
       }
     }
 
-    // ✅ Completed — totalJobs increment
+    // ✅ Completed — totalJobs increment & Apply Commission accrual
     if (status === 'completed' && isProvider) {
       if (booking.serviceCategory) {
         await ServiceProvider.findOneAndUpdate(
@@ -134,6 +132,14 @@ export async function PATCH(request, { params }) {
           { $inc: { 'services.0.totalJobs': 1 } },
           { new: true }
         );
+      }
+
+      // ✅ Auto-calculate and accrue commission in monthly database ledger [1]
+      try {
+        await applyCommissionForBooking({ booking, provider });
+        console.log('💰 Commission recorded successfully.');
+      } catch (billErr) {
+        console.error('💰 Commission log failed (non-blocking):', billErr.message);
       }
     }
 

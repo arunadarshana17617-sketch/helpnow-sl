@@ -65,6 +65,27 @@ const BookingSchema = new mongoose.Schema({
     default: null,
   },
 
+  // ─────────────────────────────────────────────
+  // 💰 Commission snapshot — booking eka 'completed' karana welawe calculate karala save karanawa
+  // ─────────────────────────────────────────────
+  commissionRate: {
+    type: Number,
+    default: null, // % applied for THIS booking (snapshot at completion time)
+  },
+  commissionAmount: {
+    type: Number,
+    default: null, // Rs. amount platform eka kapagatta
+  },
+  providerEarning: {
+    type: Number,
+    default: null, // total - commissionAmount
+  },
+  billingRecord: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Billing',
+    default: null, // me booking eka ekathu unu monthly Billing document eka
+  },
+
 }, {
   timestamps: true,
   collection: 'bookings'

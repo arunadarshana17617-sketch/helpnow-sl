@@ -27,9 +27,25 @@ export async function GET() {
     const cancelled  = allBookings.filter(b => b.status === 'cancelled');
     const waiting    = [...pending, ...confirmed];
 
-    // Total earnings - completed jobs ekin
-    const totalEarnings = completed.reduce((sum, b) => {
+    // Total gross completed values
+    const totalGrossValue = completed.reduce((sum, b) => {
       return sum + ((b.dailyRate || 0) * (b.estimatedDays || 1));
+    }, 0);
+
+    // Total commission cut
+    const totalCommissionDeducted = completed.reduce((sum, b) => {
+      const cut = typeof b.commissionAmount === 'number' 
+        ? b.commissionAmount 
+        : (((b.dailyRate || 0) * (b.estimatedDays || 1)) * 0.1);
+      return sum + cut;
+    }, 0);
+
+    // Total net earnings for the provider
+    const totalNetEarnings = completed.reduce((sum, b) => {
+      const net = typeof b.providerEarning === 'number' 
+        ? b.providerEarning 
+        : (((b.dailyRate || 0) * (b.estimatedDays || 1)) * 0.9);
+      return sum + net;
     }, 0);
 
     // Active earnings - in_progress jobs (expected)
@@ -48,29 +64,44 @@ export async function GET() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-      monthlyData[key] = { earnings: 0, jobs: 0 };
+      monthlyData[key] = { earnings: 0, jobs: 0, commission: 0, gross: 0 }; // ✅ Extended monthly tracking variables [3]
     }
 
     completed.forEach(b => {
       const key = new Date(b.updatedAt).toLocaleString('en-US', { month: 'short', year: 'numeric' });
       if (monthlyData[key] !== undefined) {
-        monthlyData[key].earnings += (b.dailyRate || 0) * (b.estimatedDays || 1);
+        const gross = (b.dailyRate || 0) * (b.estimatedDays || 1);
+        const commission = typeof b.commissionAmount === 'number' ? b.commissionAmount : (gross * 0.1);
+        const net = typeof b.providerEarning === 'number' ? b.providerEarning : (gross - commission);
+
+        // ✅ Accumulate monthly values for deep filter checks [3]
+        monthlyData[key].earnings += net;
         monthlyData[key].jobs += 1;
+        monthlyData[key].commission += commission;
+        monthlyData[key].gross += gross;
       }
     });
 
-    // Recent completed bookings - last 5
-    const recentCompleted = completed.slice(0, 5).map(b => ({
-      _id: b._id,
-      customerName: b.customerName,
-      serviceCategory: b.serviceCategory,
-      serviceProfession: b.serviceProfession,
-      dailyRate: b.dailyRate,
-      estimatedDays: b.estimatedDays,
-      earned: (b.dailyRate || 0) * (b.estimatedDays || 1),
-      completedAt: b.updatedAt,
-      preferredDate: b.preferredDate,
-    }));
+    // Recent completed bookings - mapping direct commission database values
+    const recentCompleted = completed.slice(0, 5).map(b => {
+      const gross = (b.dailyRate || 0) * (b.estimatedDays || 1);
+      const commission = typeof b.commissionAmount === 'number' ? b.commissionAmount : (gross * 0.1);
+      const net = typeof b.providerEarning === 'number' ? b.providerEarning : (gross - commission);
+
+      return {
+        _id: b._id,
+        customerName: b.customerName,
+        serviceCategory: b.serviceCategory,
+        serviceProfession: b.serviceProfession,
+        dailyRate: b.dailyRate,
+        estimatedDays: b.estimatedDays,
+        gross: gross,
+        commissionAmount: commission,
+        providerEarning: net,
+        completedAt: b.updatedAt,
+        preferredDate: b.preferredDate,
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -82,7 +113,9 @@ export async function GET() {
         services: provider.services,
       },
       stats: {
-        totalEarnings,
+        totalGrossValue,
+        totalCommissionDeducted,
+        totalNetEarnings,
         activeEarnings,
         pendingEarnings,
         totalJobs: completed.length,
