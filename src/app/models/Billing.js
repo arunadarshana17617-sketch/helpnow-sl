@@ -70,7 +70,12 @@ const BillingSchema = new mongoose.Schema({
 });
 
 // Pre-save hook to dynamically manage balanceDue [2]
-BillingSchema.pre('save', function (next) {
+// ✅ Rewritten without the `next` callback — Turbopack's bundling was
+// altering this function's declared parameter count, which made Mongoose
+// invoke it in "promise style" (no next passed in) even though the code
+// still tried to call next(), causing "next is not a function". An async
+// function with no `next` parameter works with both invocation styles.
+BillingSchema.pre('save', async function () {
   // Sum of verified payments only — this always runs regardless of current
   // status, so balanceDue/amountPaid stay accurate even for brand-new
   // 'due' invoices with zero payments yet (previously only ran for non-'open'
@@ -88,8 +93,6 @@ BillingSchema.pre('save', function (next) {
   } else if (this.status === 'paid' && this.balanceDue > 0) {
     this.status = 'due'; // Revert back to due if balance remains (e.g. a verified payment got reversed)
   }
-
-  next();
 });
 
 BillingSchema.index({ provider: 1, month: 1, year: 1 }, { unique: true });

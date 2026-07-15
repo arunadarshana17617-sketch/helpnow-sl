@@ -14,6 +14,20 @@ const BookingSchema = new mongoose.Schema({
   customerDistrict: String,
   customerCity: String,
 
+  // ✅ Customer's exact GPS location captured at booking time (optional —
+  // customer may have denied location permission, in which case this stays null)
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude] — GeoJSON order
+      default: undefined,
+    },
+  },
+
   // Service Provider
   provider: {
     type: mongoose.Schema.Types.ObjectId,
@@ -90,6 +104,8 @@ const BookingSchema = new mongoose.Schema({
   timestamps: true,
   collection: 'bookings'
 });
+
+BookingSchema.index({ location: '2dsphere' });
 
 const Booking = mongoose.models.Booking || mongoose.model('Booking', BookingSchema);
 export default Booking;

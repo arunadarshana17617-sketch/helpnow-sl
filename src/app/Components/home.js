@@ -128,7 +128,7 @@ function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, rout
             {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
               <Link 
                 key={item} 
-                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
+                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : item === 'About Us' ? '/about' : '/contact'} 
                 className="font-semibold transition relative group text-gray-700 hover:text-orange-500"
               >
                 {item}

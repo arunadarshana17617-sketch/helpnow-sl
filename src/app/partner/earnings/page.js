@@ -455,55 +455,78 @@ export default function EarningsDashboard() {
             </div>
           </div>
 
-          {/* ── Billing & Commission Section — simplified summary + direct online payment ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b">
-              <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                <Banknote size={16} className="text-orange-500" /> Platform Commission
-              </h2>
-              {commissionRate !== null && commissionRate !== undefined && (
-                <span className="text-[10px] font-bold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-full">
-                  Your rate: {commissionRate}%
-                </span>
+          {/* ── Billing & Commission Section — Platform Commission + Payment History side-by-side, as in the reference design ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+
+            {/* Platform Commission card */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                  <Banknote size={16} className="text-orange-500" /> Platform Commission
+                </h2>
+                {commissionRate !== null && commissionRate !== undefined && (
+                  <span className="text-[10px] font-bold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-full">
+                    Your rate: {commissionRate}%
+                  </span>
+                )}
+              </div>
+
+              {billingLoading ? (
+                <p className="text-xs text-gray-400 py-4 text-center">Loading...</p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-gray-500 mb-2">
+                    {primaryBillLabel}: You've completed jobs worth commission of <span className="font-bold text-slate-700">{fmt(totalCommissionAccrued)}</span> · Already paid <span className="font-bold text-emerald-600">{fmt(totalAmountPaid)}</span>
+                  </p>
+
+                  {/* Progress bar: paid vs total owed */}
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all"
+                      style={{
+                        width: totalCommissionAccrued > 0
+                          ? `${Math.min(100, (totalAmountPaid / totalCommissionAccrued) * 100)}%`
+                          : '100%'
+                      }}
+                    />
+                  </div>
+
+                  {totalBalanceDue <= 0 && (
+                    <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1.5 mb-3">
+                      <CheckCircle2 size={14} /> You're fully settled up — nothing owed right now 🎉
+                    </p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] text-gray-400 font-semibold uppercase">Total Owed (Commission + Unbilled)</p>
+                      <p className={`text-xl font-black ${totalBalanceDue > 0 ? 'text-red-500' : 'text-slate-700'}`}>{fmt(totalBalanceDue)}</p>
+                    </div>
+                    <button
+                      onClick={() => { setPayModalBill(primaryPayTarget); setPayAmount(totalBalanceDue > 0 ? totalBalanceDue : ''); setPayError(''); setPaySuccess(''); setPayMethod('payhere'); setSlipFile(null); setPaymentReference(''); }}
+                      className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-5 py-3 rounded-xl transition shrink-0 flex items-center justify-center gap-2"
+                    >
+                      💳 Pay Online Now
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
-            {billingLoading ? (
-              <p className="text-xs text-gray-400 py-4 text-center">Loading...</p>
-            ) : totalBalanceDue <= 0 ? (
-              <div className="text-center py-6">
-                <CheckCircle2 size={26} className="text-emerald-400 mx-auto mb-2" />
-                <p className="text-gray-500 text-xs font-medium">You're fully settled up — nothing owed right now 🎉</p>
+            {/* Payment History card */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                  <Clock size={16} className="text-orange-500" /> Payment History
+                </h2>
               </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50/60 border border-slate-100 rounded-xl">
-                <div>
-                  <p className="text-[10px] text-gray-500 font-semibold uppercase mb-1">
-                    {primaryBillLabel}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    You've completed jobs worth commission of {fmt(totalCommissionAccrued)} · Already paid {fmt(totalAmountPaid)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right">
-                    <p className="text-[9px] text-gray-400 font-semibold uppercase">You Owe</p>
-                    <p className="text-xl font-black text-red-500">{fmt(totalBalanceDue)}</p>
-                  </div>
-                  <button
-                    onClick={() => { setPayModalBill(primaryPayTarget); setPayAmount(totalBalanceDue); setPayError(''); setPaySuccess(''); setPayMethod('payhere'); setSlipFile(null); setPaymentReference(''); }}
-                    className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-5 py-3 rounded-xl transition shrink-0"
-                  >
-                    💳 Pay Online Now
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {/* ── Payment History ── */}
-            {allPayments.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-gray-100">
-                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-3">Payment History</p>
+              {allPayments.length === 0 ? (
+                <div className="text-center py-8">
+                  <Banknote size={28} className="text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-400 text-xs font-medium">No payments recorded yet</p>
+                </div>
+              ) : (
                 <div className="space-y-2">
                   {allPayments.map((p) => (
                     <div key={p._id} className="flex items-center justify-between gap-3 py-2 px-3 bg-slate-50/40 rounded-lg">
@@ -531,8 +554,9 @@ export default function EarningsDashboard() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
           </div>
 
           {/* Key Metrics Stats grid */}
@@ -746,13 +770,41 @@ export default function EarningsDashboard() {
               </button>
             </div>
 
-            <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1.5">Amount to Pay (LKR)</label>
+            <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1.5">Amount to Pay</label>
+
+            {/* Full balance vs custom amount choice */}
+            <div className="space-y-2 mb-3">
+              <label className="flex items-center gap-2.5 p-2.5 border border-gray-200 rounded-xl cursor-pointer has-[:checked]:border-orange-400 has-[:checked]:bg-orange-50/50">
+                <input
+                  type="radio"
+                  name="amountChoice"
+                  checked={parseFloat(payAmount) === (payModalBill === 'unbilled' ? unbilledCommission : payModalBill.balanceDue)}
+                  onChange={() => setPayAmount(payModalBill === 'unbilled' ? unbilledCommission : payModalBill.balanceDue)}
+                  className="accent-orange-500"
+                />
+                <span className="text-xs font-semibold text-slate-700">
+                  Pay Full Balance — {fmt(payModalBill === 'unbilled' ? unbilledCommission : payModalBill.balanceDue)}
+                </span>
+              </label>
+              <label className="flex items-center gap-2.5 p-2.5 border border-gray-200 rounded-xl cursor-pointer has-[:checked]:border-orange-400 has-[:checked]:bg-orange-50/50">
+                <input
+                  type="radio"
+                  name="amountChoice"
+                  checked={parseFloat(payAmount) !== (payModalBill === 'unbilled' ? unbilledCommission : payModalBill.balanceDue)}
+                  onChange={() => setPayAmount('')}
+                  className="accent-orange-500"
+                />
+                <span className="text-xs font-semibold text-slate-700">Custom Amount</span>
+              </label>
+            </div>
+
             <input
               type="number"
               min="1"
               max={payModalBill === 'unbilled' ? unbilledCommission : payModalBill.balanceDue}
               step="0.01"
               value={payAmount}
+              placeholder="Enter amount (LKR)"
               onChange={(e) => setPayAmount(e.target.value)}
               className="w-full px-3 py-2.5 bg-slate-50 border border-gray-200 text-sm font-bold text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 mb-3"
             />

@@ -317,6 +317,15 @@ export default function BookingModal({ provider: initialProvider, service, onClo
           serviceCategory: service?.category,
           ...customerData,
           ...jobData,
+          // Send the GPS-captured coordinates too, not just the typed address.
+          // This is the exact location used for distance calculation — without
+          // sending it, the booking only stores the manually typed address/city/district.
+          location: locationOn && customerCoords
+            ? {
+                type: 'Point',
+                coordinates: [customerCoords.lng, customerCoords.lat], // GeoJSON order: [lng, lat]
+              }
+            : null,
         }),
       });
 

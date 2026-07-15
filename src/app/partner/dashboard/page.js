@@ -111,6 +111,26 @@ function LocationToggle({ provider, language }) {
   const [enabled, setEnabled] = useState(provider?.locationEnabled || false);
   const [toggling, setToggling] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(provider?.locationUpdatedAt || null);
+  const [toggleError, setToggleError] = useState('');
+
+  // GeolocationPositionError doesn't have own enumerable properties, so
+  // console.error(err) / JSON.stringify(err) prints "{}" — read err.code manually instead.
+  const describeGeoError = (err) => {
+    switch (err?.code) {
+      case 1: return language === 'si'
+        ? 'Location permission block wela. Browser settings eke Allow karanna.'
+        : 'Location permission denied. Please allow location access in your browser settings.';
+      case 2: return language === 'si'
+        ? 'Location eka detect karanna bari una. GPS/Internet check karanna.'
+        : 'Could not detect your location. Check your GPS/internet connection.';
+      case 3: return language === 'si'
+        ? 'GPS timeout una. Try again karanna.'
+        : 'Location request timed out. Please try again.';
+      default: return language === 'si'
+        ? 'Location toggle karanna barii una.'
+        : 'Something went wrong toggling location.';
+    }
+  };
 
   const pushLocation = () => {
     if (!navigator.geolocation) return;
@@ -156,22 +176,43 @@ function LocationToggle({ provider, language }) {
 
   const handleToggle = async () => {
     setToggling(true);
+    setToggleError('');
     try {
       const body = { enabled: !enabled };
+
       if (!enabled) {
-        const pos = await new Promise((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
-        );
-        body.lat = pos.coords.latitude; body.lng = pos.coords.longitude;
+        // Get GPS position first — separate try/catch so a GeolocationPositionError
+        // (permission denied / timeout / unavailable) gets a readable message
+        // instead of printing "{}" from console.error.
+        let pos;
+        try {
+          pos = await new Promise((res, rej) =>
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
+          );
+        } catch (geoErr) {
+          setToggleError(describeGeoError(geoErr));
+          setToggling(false);
+          return;
+        }
+        body.lat = pos.coords.latitude;
+        body.lng = pos.coords.longitude;
       }
 
-      const res = await fetch('/api/partner/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch('/api/partner/location', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Update failed');
-      setEnabled(json.data.locationEnabled); setLastUpdated(json.data.locationUpdatedAt);
+      setEnabled(json.data.locationEnabled);
+      setLastUpdated(json.data.locationUpdatedAt);
     } catch (err) {
-      console.error(err);
-    } finally { setToggling(false); }
+      console.error('[LocationToggle]', err?.message || err);
+      setToggleError(err?.message || (language === 'si' ? 'Update karanna barii una.' : 'Update failed.'));
+    } finally {
+      setToggling(false);
+    }
   };
 
   return (
@@ -190,6 +231,9 @@ function LocationToggle({ provider, language }) {
         <p className="text-[9px] text-green-600 font-semibold mt-1.5">
           📍 {language === 'si' ? 'සක්‍රීයයි (යාවත්කාලීන කලා ' : 'Active (Updated '}{new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
         </p>
+      )}
+      {toggleError && (
+        <p className="text-[9px] text-red-500 font-semibold mt-1.5">⚠ {toggleError}</p>
       )}
     </div>
   );

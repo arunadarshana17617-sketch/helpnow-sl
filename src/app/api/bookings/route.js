@@ -20,8 +20,16 @@ export async function POST(request) {
     const body = await request.json();
     const {
       providerId, serviceCategory, phone, address, district, city,
-      jobDescription, preferredDate, estimatedDays, customerNotes
+      jobDescription, preferredDate, estimatedDays, customerNotes,
+      location, // ✅ { type: 'Point', coordinates: [lng, lat] } | null — from GPS
     } = body;
+
+    // Validate location shape before saving — bad/partial data shouldn't corrupt the record
+    const hasValidLocation = location
+      && Array.isArray(location.coordinates)
+      && location.coordinates.length === 2
+      && location.coordinates.every(n => typeof n === 'number' && !isNaN(n))
+      && !(location.coordinates[0] === 0 && location.coordinates[1] === 0);
 
     let customer = await Customer.findOne({ email: session.user.email });
     if (!customer) {
@@ -56,6 +64,10 @@ export async function POST(request) {
       customerAddress: address,
       customerDistrict: district,
       customerCity: city,
+      // ✅ Save exact GPS coords only if valid — otherwise leave unset (no fake 0,0 point)
+      ...(hasValidLocation && {
+        location: { type: 'Point', coordinates: location.coordinates },
+      }),
       provider: provider._id,
       providerName: provider.fullName,
       providerEmail: provider.email,
