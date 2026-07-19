@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -8,8 +8,103 @@ import {
   Home, CalendarDays, User, DollarSign, Bell, ChevronDown, Menu, X, Zap,
   Clock, Megaphone, Banknote, Calendar, Loader2, AlertCircle, TrendingUp,
   Briefcase, CheckCircle2, XCircle, ArrowLeft, RefreshCw, BadgeCheck,
-  BarChart2, PlayCircle, Settings, LogOut
+  BarChart2, PlayCircle, Settings, LogOut,
+  MessageCircle, MessageSquare, ThumbsUp
 } from 'lucide-react';
+
+// ── Facebook-style Notification Bell (same component used on the dashboard) ──
+function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMarkAllRead, language }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const timeAgo = (date) => {
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    let interval = Math.floor(seconds / 31536000);
+    if (interval >= 1) return language === 'si' ? `${interval}y කට පෙර` : `${interval}y ago`;
+    interval = Math.floor(seconds / 2592000);
+    if (interval >= 1) return language === 'si' ? `${interval}mo කට පෙර` : `${interval}mo ago`;
+    interval = Math.floor(seconds / 86400);
+    if (interval >= 1) return language === 'si' ? `දින ${interval} කට පෙර` : `${interval}d ago`;
+    interval = Math.floor(seconds / 3600);
+    if (interval >= 1) return language === 'si' ? `පැය ${interval} කට පෙර` : `${interval}h ago`;
+    interval = Math.floor(seconds / 60);
+    if (interval >= 1) return language === 'si' ? `මිනිත්තු ${interval} කට පෙර` : `${interval}m ago`;
+    return language === 'si' ? 'දැන් ලැබුණා' : 'Just now';
+  };
+
+  const getIcon = (type) => {
+    switch (type) {
+      case 'new_booking': return <Calendar size={14} className="text-blue-500" />;
+      case 'new_comment': return <MessageSquare size={14} className="text-orange-500" />;
+      case 'comment_reaction': return <ThumbsUp size={14} className="text-red-500" fill="#ef4444" />;
+      default: return <Zap size={14} className="text-gray-500" />;
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-xl hover:bg-gray-100 transition relative">
+        <Bell size={18} className="text-gray-500" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-bounce shadow">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+          <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+            <h4 className="font-extrabold text-xs text-slate-800">{language === 'si' ? 'දැනුම්දීම්' : 'Notifications'}</h4>
+            {unreadCount > 0 && (
+              <button onClick={onMarkAllRead} className="text-[10px] text-orange-500 hover:underline font-bold">
+                {language === 'si' ? 'සියල්ල කියවූ බව ලකුණු කරන්න' : 'Mark all as read'}
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+            {notifications.length > 0 ? (
+              notifications.map((notif) => (
+                <div
+                  key={notif._id}
+                  onClick={() => onMarkAsRead(notif)}
+                  className={`p-3 flex items-start gap-3 cursor-pointer transition-colors ${notif.isRead ? 'bg-white hover:bg-slate-50' : 'bg-[#f0f7ff] hover:bg-[#e0efff]'}`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-100 shrink-0">
+                    {getIcon(notif.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-slate-800 truncate">{notif.title}</p>
+                    <p className="text-[10px] text-slate-600 line-clamp-2 mt-0.5">{notif.message}</p>
+                    <span className="text-[8px] text-slate-400 font-semibold mt-1 inline-block">{timeAgo(notif.createdAt)}</span>
+                  </div>
+                  {!notif.isRead && (
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-400 text-xs font-semibold">
+                {language === 'si' ? 'දැනට දැනුම්දීම් කිසිවක් නැත' : 'No notifications yet'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Key Metrics Cards Component ──────────────────────────────────
 function StatCard({ icon: Icon, label, value, sub, color, bg }) {
@@ -58,16 +153,85 @@ export default function EarningsDashboard() {
   // Interactive Month Selector dropdown states [3]
   const [selectedMonth, setSelectedMonth] = useState('');
 
+  // 🔔 Notifications + messenger — same behaviour as the dashboard header
+  const [notifications, setNotifications] = useState([]);
+  const [messageToast, setMessageToast] = useState(null);
+  const seenMessageIdsRef = useRef(null); // null = not initialized yet (first load)
+
   useEffect(() => { if (status === 'unauthenticated') router.push('/'); }, [status]);
   useEffect(() => { 
     if (status === 'authenticated') {
       fetchEarnings();
       fetchBilling();
+      fetchNotifications();
       // Sync localized language state [3]
       const savedLang = localStorage.getItem('helpnow_lang') || 'en';
       setLanguage(savedLang);
     } 
   }, [status]);
+
+  // 🔔 Poll for new notifications every 20s (same interval used on the dashboard)
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const pollId = setInterval(fetchNotifications, 20000);
+    return () => clearInterval(pollId);
+  }, [status]);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/partner/notifications');
+      const json = await res.json();
+      if (json.success) {
+        setNotifications(json.notifications);
+
+        // Detect newly-arrived messages (status replies/reactions) to show a toast
+        const messageNotifs = json.notifications.filter(
+          n => n.type === 'status_reply' || n.type === 'status_reaction'
+        );
+
+        if (seenMessageIdsRef.current === null) {
+          // First load — just remember what's already there, don't toast for old messages
+          seenMessageIdsRef.current = new Set(messageNotifs.map(n => n._id));
+        } else {
+          const newOnes = messageNotifs.filter(n => !seenMessageIdsRef.current.has(n._id));
+          if (newOnes.length > 0) {
+            setMessageToast(newOnes[0]);
+            setTimeout(() => setMessageToast(null), 5000);
+          }
+          seenMessageIdsRef.current = new Set(messageNotifs.map(n => n._id));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      await fetch('/api/partner/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: notif._id })
+      });
+      fetchNotifications();
+      router.push(notif.link);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await fetch('/api/partner/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true })
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Handle PayHere redirect back after checkout completes
   useEffect(() => {
@@ -335,6 +499,28 @@ export default function EarningsDashboard() {
     // ✅ restricted parent height & hidden scroll to create app shell layout [2]
     <div className="h-screen w-screen bg-[#f7f8fc] flex overflow-hidden">
 
+      {/* ── New message toast — pops down from the top like a notification ── */}
+      {messageToast && (
+        <div
+          onClick={() => { setMessageToast(null); router.push('/partner/messages'); }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-white shadow-2xl border border-gray-100 rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer max-w-sm w-[92%]"
+        >
+          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-blue-100 flex items-center justify-center">
+            {messageToast.senderPhoto ? (
+              <img src={messageToast.senderPhoto} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-blue-500 font-bold">
+                {messageToast.senderName?.charAt(0)?.toUpperCase() || '?'}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-slate-800 truncate">{messageToast.senderName}</p>
+            <p className="text-[11px] text-slate-500 truncate">{messageToast.message}</p>
+          </div>
+        </div>
+      )}
+
       {/* ── HelpNow Sidebar (Independent Menu Scroll Enabled) ── */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-60 h-full bg-[#0f172a] flex flex-col transform transition-transform duration-300 shrink-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:z-auto`}>
@@ -398,9 +584,25 @@ export default function EarningsDashboard() {
             <button onClick={fetchEarnings} className="p-2 rounded-xl hover:bg-gray-100 transition text-slate-500 hover:text-orange-500 shrink-0" title={labels.refresh}>
               <RefreshCw size={16} />
             </button>
-            <button className="p-2 rounded-xl hover:bg-gray-100 transition shrink-0">
-              <Bell size={18} className="text-gray-500" />
-            </button>
+
+            {/* ── Facebook-style Notification Bell (system notifications only) ── */}
+            <NotificationDropdown
+              notifications={notifications.filter(n => n.type !== 'status_reply' && n.type !== 'status_reaction')}
+              unreadCount={notifications.filter(n => !n.isRead && n.type !== 'status_reply' && n.type !== 'status_reaction').length}
+              onMarkAsRead={handleNotificationClick}
+              onMarkAllRead={handleMarkAllNotificationsRead}
+              language={language}
+            />
+
+            {/* ── Messenger-style icon: takes you to the full /partner/messages page ── */}
+            <Link href="/partner/messages" className="p-2 rounded-xl hover:bg-gray-100 transition relative shrink-0">
+              <MessageCircle size={18} className="text-gray-500" />
+              {notifications.filter(n => !n.isRead && (n.type === 'status_reply' || n.type === 'status_reaction')).length > 0 && (
+                <span className="absolute top-1.5 right-1.5 bg-blue-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-bounce shadow">
+                  {notifications.filter(n => !n.isRead && (n.type === 'status_reply' || n.type === 'status_reaction')).length}
+                </span>
+              )}
+            </Link>
 
             {/* ✅ Added shrink-0 to prevent layout squeezing on mobile screens [2] */}
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200 shrink-0">

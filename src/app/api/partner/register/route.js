@@ -1,7 +1,14 @@
+// 📁 DESTINATION: src/app/api/partner/register/route.js  (REPLACES your existing file)
+//
+// ONLY CHANGE: imports `notifyAdmin` and calls it right after the new
+// provider is saved, so the admin bell shows new partner registrations.
+// Everything else (Cloudinary uploads, validation, etc.) is untouched.
+
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import ServiceProvider from '@/app/models/ServiceProvider';
 import { v2 as cloudinary } from 'cloudinary';
+import { notifyAdmin } from '@/app/lib/notify'; // ✅ NEW
 
 // Cloudinary config
 cloudinary.config({
@@ -139,6 +146,14 @@ export async function POST(request) {
       nicBack: nicBackUrl,
       policeReport: policeUrl,
       status: 'pending',
+    });
+
+    // ✅ NEW — let admin know a new partner registered and needs approval
+    await notifyAdmin({
+      type: 'new_registration',
+      title: 'New partner registration',
+      message: `${fullName} registered as a ${profession} (${category}) in ${city || district}. Pending approval.`,
+      link: '/admin/providers',
     });
 
     return NextResponse.json(

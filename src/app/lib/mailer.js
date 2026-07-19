@@ -3,6 +3,7 @@
 import connectDB from '@/app/lib/mongodb';
 import ServiceProvider from '@/app/models/ServiceProvider';
 
+
 export async function sendEmail({ to, subject, html, checkProviderEmail = null }) {
   try {
     // ✅ NEW — fail loudly and clearly if Brevo isn't configured, instead of

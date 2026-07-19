@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 // Sub-schema for each service
 const ServiceSchema = new mongoose.Schema({
@@ -126,7 +127,7 @@ const ServiceProviderSchema = new mongoose.Schema({
     default: false,
   },
 
-  // ✅ GPS location for nearby search
+  // GPS location for nearby search
   location: {
     type: {
       type: String,
@@ -139,7 +140,7 @@ const ServiceProviderSchema = new mongoose.Schema({
     },
   },
 
-  // ✅ Partner location on/off toggle — customer side eke penenna kiyala
+  // Partner location on/off toggle - shown on customer side
   locationEnabled: {
     type: Boolean,
     default: false,
@@ -154,9 +155,8 @@ const ServiceProviderSchema = new mongoose.Schema({
   },
 
   // ─────────────────────────────────────────────
-  // 💰 Commission & Billing
+  // Commission & Billing
   // ─────────────────────────────────────────────
-  // null = platform default rate use wenawa. Number ekak dunnoth eka witharai apply wenne.
   commissionRate: {
     type: Number,
     default: null,
@@ -164,8 +164,6 @@ const ServiceProviderSchema = new mongoose.Schema({
     max: 100,
   },
 
-  // 'active' -> normal widihata service denna puluwan
-  // 'suspended' -> bill eka gewala na, service denna barr karala
   accountStatus: {
     type: String,
     enum: ['active', 'suspended'],
@@ -180,6 +178,30 @@ const ServiceProviderSchema = new mongoose.Schema({
     default: null,
   },
 
+  // ✅ NEW — true from the moment a provider registers, until an admin
+  // opens their profile in /admin/professionals for the first time.
+  // Drives the sidebar "NEW" badge count AND the row highlight.
+  // Existing providers already in the DB before this field was added
+  // simply won't have it set (Mongoose defaults don't retroactively
+  // apply to existing documents), so old ones stay un-highlighted —
+  // only future registrations get flagged.
+  isNewForAdmin: {
+    type: Boolean,
+    default: true,
+  },
+
+  // ─────────────────────────────────────────────
+  // 🔑 Forgot Password (OTP based reset)
+  // ─────────────────────────────────────────────
+  resetPasswordOTP: {
+    type: String,
+    default: null,
+  },
+  resetPasswordOTPExpiry: {
+    type: Date,
+    default: null,
+  },
+
   // Multiple Services (Fiverr style)
   services: [ServiceSchema],
 
@@ -188,9 +210,36 @@ const ServiceProviderSchema = new mongoose.Schema({
   collection: 'serviceproviders'
 });
 
-// 2dsphere index — nearby search karanna must
+// 2dsphere index — required for nearby search
 ServiceProviderSchema.index({ location: '2dsphere' });
 
-const ServiceProvider = mongoose.models.ServiceProvider || mongoose.model('ServiceProvider', ServiceProviderSchema);
+// 🔒 Hash password before saving (only if it was changed) - FIXED
+ServiceProviderSchema.pre('save', async function () {
+  const provider = this;
+
+  if (!provider.isModified('password')) {
+    return; 
+  }
+
+  try {
+    const alreadyHashed = /^\$2[aby]\$/.test(provider.password);
+    if (alreadyHashed) {
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    provider.password = await bcrypt.hash(provider.password, salt);
+  } catch (err) {
+    throw err; 
+  }
+});
+
+// Instance method to compare a plain password against the stored hash
+ServiceProviderSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+// 💡 Named + Default Export දෙකම එකතු කිරීම මඟින් Turbopack compile දෝෂය සම්පූර්ණයෙන්ම විසඳේ
+export const ServiceProvider = mongoose.models.ServiceProvider || mongoose.model('ServiceProvider', ServiceProviderSchema);
 
 export default ServiceProvider;

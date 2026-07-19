@@ -127,7 +127,7 @@ function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, rout
             {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
               <Link 
                 key={item} 
-                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
+                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : item === 'About Us' ? '/about' : '/contact'} 
                 className="font-semibold transition relative group text-gray-700 hover:text-orange-500"
               >
                 {item}
@@ -239,8 +239,8 @@ function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, rout
             {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
               <Link 
                 key={item} 
-                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
-                className="block py-3 px-4 text-lg font-semibold hover:bg-orange-50 rounded-xl transition"
+                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : item === 'About Us' ? '/about' : '/contact'} 
+                className="block py-3 px-4 text-lg font-semibold text-gray-900 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
                 onClick={closeMobileMenu}
               >
                 {item}

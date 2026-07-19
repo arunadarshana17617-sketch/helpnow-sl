@@ -1,9 +1,12 @@
 ﻿"use client";
 import React, { useState, useEffect } from 'react';
 import BookingModal from './BookingModal';
+import RequestServiceModal from './RequestServiceModal';
 import CommentSection from './CommentSection';
+import StatusTray from './StatusTray'; // Imported StatusTray Component
+import StatusStoryViewer from './StatusStoryViewer'; // per-craftsman status ring + viewer
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -41,7 +44,8 @@ import {
   Loader2,
   AlertCircle,
   FileText,
-  Leaf
+  Leaf,
+  Car
 } from 'lucide-react';
 
 // Haversine distance (km) between two GPS points
@@ -184,9 +188,13 @@ const ServicesUI = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [emergencyOnly, setEmergencyOnly] = useState(false);
+  // Per-craftsman "has an active status" ring + click-to-view
+  const [statusGroups, setStatusGroups] = useState([]);
+  const [viewingStatusGroup, setViewingStatusGroup] = useState(null);
   const [bookingModal, setBookingModal] = useState(null);
   const [contactModal, setContactModal] = useState(null);
   const [showPending, setShowPending] = useState(true);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   // GPS location state
   const [userCoords, setUserCoords] = useState(null);
@@ -199,7 +207,7 @@ const ServicesUI = () => {
   const urlCommentId = searchParams.get('commentId');
   const urlReplyId = searchParams.get('replyId');
 
-  // 1. Live Notification trigger: Auto-expand & Reset filters so targets are guaranteed to display [1]
+  // 1. Live Notification trigger: Auto-expand & Reset filters so targets are guaranteed to display
   useEffect(() => {
     if (urlProviderId && craftsmen.length > 0) {
       const targetCraftsman = craftsmen.find(c => c._id === urlProviderId);
@@ -212,7 +220,20 @@ const ServicesUI = () => {
     }
   }, [urlProviderId, craftsmen]);
 
-  // 2. Live Notification trigger: Smooth scroll & highlight comment element inside the section [2]
+  // Fetch which providers currently have an active status (for the colorful
+  // ring around their profile photo + click-to-view on their card)
+  useEffect(() => {
+    fetch('/api/statuses')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setStatusGroups(data); })
+      .catch(err => console.error(err));
+  }, []);
+
+  const getStatusGroupFor = (providerId) =>
+    statusGroups.find(g => g.provider._id === providerId);
+
+
+  // 2. Live Notification trigger: Smooth scroll & highlight comment element inside the section
   useEffect(() => {
     if (urlCommentId && expandedCraftsman === urlProviderId && craftsmen.length > 0) {
       setTimeout(() => {
@@ -355,21 +376,18 @@ const ServicesUI = () => {
     { id: 'painter', name: 'Painters', icon: <Paintbrush size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'painter')).length },
     { id: 'ac', name: 'AC Technicians', icon: <Wind size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'ac')).length },
     { id: 'gardener', name: 'Gardeners', icon: <Leaf size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'gardener')).length },
+    { id: 'mechanic', name: 'Mechanics', icon: <Car size={20} />, count: craftsmen.filter(c => c.services?.some(s => s.category === 'mechanic')).length },
   ];
 
-  // ── FILTER DIRECTIVE (Robust owner & admin logic synchronization) ──
+  // ── FILTER DIRECTIVE ──
   const filteredCraftsmen = craftsmen.filter(c => {
     const service = getService(c);
 
-    // Notification target bypass logic: Target craftsman bypasses filters so deep-linking is flawless [1]
     const isNotificationTarget = urlProviderId && c._id === urlProviderId;
 
     if (!isNotificationTarget) {
-      // 1. Owner's Active status: If owner has paused/inactive the service, hide completely
       if (service.isActive === false) return false;
 
-      // 2. Admin's Verification status:
-      // Hide if not verified by admin (unless 'showPending' is toggled for admin preview checks)
       if (!showPending && service.verificationStatus !== 'verified') return false;
     }
 
@@ -433,12 +451,13 @@ const ServicesUI = () => {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 overflow-x-hidden">
       {/* Navigation Bar */}
-      <nav className="fixed top-0 w-full z-50 bg-white shadow-md py-2">
+      <nav className="fixed top-0 w-full z-50 transition-all duration-300 bg-white shadow-md py-2 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
+
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-              <div className="p-2 rounded-lg text-white bg-blue-600 transform hover:rotate-12 transition-transform">
+              <div className="p-2 rounded-lg text-white bg-orange-500 transform hover:rotate-12 transition-transform">
                 <Wrench size={24} />
               </div>
               <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-blue-900">
@@ -451,14 +470,15 @@ const ServicesUI = () => {
               {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
                 <Link
                   key={item}
-                  href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
-                  className="font-semibold transition relative group text-gray-700 hover:text-blue-600"
+                  href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : item === 'About Us' ? '/about' : '/contact'}
+                  className="font-semibold transition relative group text-gray-700 hover:text-orange-500"
                 >
                   {item}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300"></span>
                 </Link>
               ))}
 
+              {/* Join as Pro Button */}
               <button
                 onClick={() => router.push('/partner')}
                 className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white"
@@ -467,6 +487,7 @@ const ServicesUI = () => {
                 Join as Pro
               </button>
 
+              {/* Auth Button - Desktop */}
               {status === "loading" ? (
                 <div className="w-24 h-10 bg-gray-200 rounded-full animate-pulse"></div>
               ) : session ? (
@@ -492,7 +513,7 @@ const ServicesUI = () => {
                         ) : (
                           <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
                             {session.user?.name?.[0]?.toUpperCase()}
-                          </div>
+                        </div>
                         )}
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{session.user?.name}</p>
@@ -501,8 +522,10 @@ const ServicesUI = () => {
                       </div>
                     </div>
 
+                    {/* My Profile */}
                     <ProfileLink />
 
+                    {/* My Bookings */}
                     <Link href="/bookings"
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
                     >
@@ -531,7 +554,7 @@ const ServicesUI = () => {
                 </div>
               ) : (
                 <button
-                  onClick={() => signIn('google')}
+                  onClick={() => router.push('/login')}
                   className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   Login / Sign Up
@@ -543,7 +566,7 @@ const ServicesUI = () => {
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-700"
+                className="p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-800"
                 aria-label="Toggle menu"
               >
                 {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -559,8 +582,8 @@ const ServicesUI = () => {
               {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
                 <Link
                   key={item}
-                  href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'}
-                  className="block py-3 px-4 text-lg font-semibold hover:bg-blue-50 rounded-xl transition"
+                  href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : item === 'About Us' ? '/about' : '/contact'}
+                  className="block py-3 px-4 text-lg font-semibold text-gray-900 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition"
                   onClick={closeMobileMenu}
                 >
                   {item}
@@ -601,9 +624,9 @@ const ServicesUI = () => {
                   <Link
                     href="/bookings"
                     onClick={closeMobileMenu}
-                    className="flex items-center gap-3 w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl transition"
+                    className="flex items-center gap-3 w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-xl transition"
                   >
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                     </div>
                     My Bookings
@@ -625,7 +648,7 @@ const ServicesUI = () => {
               ) : (
                 <button
                   onClick={() => {
-                    signIn('google');
+                    router.push('/login');
                     closeMobileMenu();
                   }}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
@@ -652,25 +675,24 @@ const ServicesUI = () => {
             />
           </div>
           <div className="flex items-center gap-4 flex-shrink-0">
-            <div className="flex items-center gap-1.5 text-sm text-gray-600">
-              <Users size={15} className="text-blue-500" />
-              <span className="font-semibold">{totalCraftsmen}</span>
-              <span>Total</span>
-            </div>
-            <div className="w-px h-4 bg-gray-200"></div>
-            <div className="flex items-center gap-1.5 text-sm text-gray-600">
-              <Star size={15} className="text-yellow-500 fill-current" />
-              <span className="font-semibold">{verifiedCount}</span>
-              <span>Verified</span>
-            </div>
-            <div className="w-px h-4 bg-gray-200"></div>
-            <div className="flex items-center gap-1.5 text-sm text-gray-600">
-              <Clock size={15} className="text-orange-400" />
-              <span className="font-semibold">{pendingCount}</span>
-              <span>Pending</span>
-            </div>
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition flex-shrink-0"
+            >
+              <Zap size={15} />
+              <span>Quick Request</span>
+            </button>
           </div>
         </div>
+      </div>
+
+      {showRequestModal && (
+        <RequestServiceModal onClose={() => setShowRequestModal(false)} />
+      )}
+
+      {/* WhatsApp style Status Tray positioned directly below search area */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-4">
+        <StatusTray />
       </div>
 
       {/* Main Content */}
@@ -942,17 +964,34 @@ const ServicesUI = () => {
                       <div className="p-6">
                         <div className="flex flex-col sm:flex-row gap-4">
                           <div className="flex-shrink-0">
-                            {craftsman.photo ? (
-                              <img
-                                src={craftsman.photo}
-                                alt={craftsman.fullName}
-                                className="w-20 h-20 rounded-2xl object-cover shadow-lg"
-                              />
-                            ) : (
-                              <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                                {getInitials(craftsman.fullName)}
-                              </div>
-                            )}
+                            {(() => {
+                              const statusGroup = getStatusGroupFor(craftsman._id);
+                              const photoNode = craftsman.photo ? (
+                                <img
+                                  src={craftsman.photo}
+                                  alt={craftsman.fullName}
+                                  className="w-20 h-20 rounded-2xl object-cover shadow-lg"
+                                />
+                              ) : (
+                                <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                                  {getInitials(craftsman.fullName)}
+                                </div>
+                              );
+
+                              if (!statusGroup) return photoNode;
+
+                              return (
+                                <button
+                                  onClick={() => setViewingStatusGroup(statusGroup)}
+                                  className="block p-[3px] rounded-2xl bg-gradient-to-tr from-orange-500 via-pink-500 to-purple-500 hover:scale-105 transition-transform"
+                                  title="View status"
+                                >
+                                  <div className="bg-white p-[2px] rounded-2xl">
+                                    {photoNode}
+                                  </div>
+                                </button>
+                              );
+                            })()}
                           </div>
 
                           <div className="flex-1">
@@ -1008,6 +1047,7 @@ const ServicesUI = () => {
                                     painter: 'Painter',
                                     ac: 'AC Technician',
                                     gardener: 'Gardener',
+                                    mechanic: 'Mechanic',
                                   };
                                   const categoryColors = {
                                     electrician: 'bg-yellow-50 border-yellow-300 text-yellow-700',
@@ -1017,6 +1057,7 @@ const ServicesUI = () => {
                                     painter:     'bg-pink-50 border-pink-300 text-pink-700',
                                     ac:          'bg-cyan-50 border-cyan-300 text-cyan-700',
                                     gardener:    'bg-green-50 border-green-300 text-green-700',
+                                    mechanic:    'bg-red-50 border-red-300 text-red-700',
                                   };
                                   const categoryIcons = {
                                     electrician: '⚡',
@@ -1026,6 +1067,7 @@ const ServicesUI = () => {
                                     painter: '🎨',
                                     ac: '❄️',
                                     gardener: '🌿',
+                                    mechanic: '🔧',
                                   };
                                   return (
                                     <div className="flex flex-wrap gap-1.5 mt-2">
@@ -1215,7 +1257,7 @@ const ServicesUI = () => {
                         <div className="flex items-center gap-2 mb-4">
                           <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
                           <span className="font-semibold text-gray-700 text-sm">
-                            {nearbyOnly ? `ඔයාගෙ ළගම — ${nearby.length} provider${nearby.length !== 1 ? 's' : ''}` : `ඔයාගෙ ළගම — ${nearby.length} provider${nearby.length !== 1 ? 's' : ''}`}
+                            {nearbyOnly ? `Closest to you — ${nearby.length} provider${nearby.length !== 1 ? 's' : ''}` : `Near you — ${nearby.length} provider${nearby.length !== 1 ? 's' : ''}`}
                           </span>
                         </div>
                         <div className="space-y-6 mb-6">
@@ -1227,7 +1269,7 @@ const ServicesUI = () => {
                     {nearby.length > 0 && others.length > 0 && (
                       <div className="flex items-center gap-4 my-6">
                         <div className="flex-1 border-t border-gray-200"></div>
-                        <span className="text-sm text-gray-400 whitespace-nowrap">අනිත් providers</span>
+                        <span className="text-sm text-gray-400 whitespace-nowrap">Other providers</span>
                         <div className="flex-1 border-t border-gray-200"></div>
                       </div>
                     )}
@@ -1363,7 +1405,7 @@ const ServicesUI = () => {
                 <p className="text-orange-600 text-sm font-medium">
                   {contactModal.services?.map(s => ({
                     electrician:'Electrician', plumber:'Plumber', mason:'Mason',
-                    carpenter:'Carpenter', painter:'Painter', ac:'AC Technician', gardener:'Gardener'
+                    carpenter:'Carpenter', painter:'Painter', ac:'AC Technician', gardener:'Gardener', mechanic:'Mechanic'
                   }[s.category] || s.category)).join(' · ')}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
@@ -1473,6 +1515,13 @@ const ServicesUI = () => {
             setBookingModal(null);
             fetchCraftsmen();
           }}
+        />
+      )}
+
+      {viewingStatusGroup && (
+        <StatusStoryViewer
+          group={viewingStatusGroup}
+          onClose={() => setViewingStatusGroup(null)}
         />
       )}
     </div>

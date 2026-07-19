@@ -11,6 +11,16 @@ import {
   Hammer, Droplets, Zap, Paintbrush, Wind, Briefcase, Leaf
 } from 'lucide-react';
 
+// Formats a raw customer count into a compact display string, e.g. 1240 -> "1.2K+"
+function formatCustomerCount(n) {
+  if (typeof n !== 'number' || isNaN(n)) return null;
+  if (n >= 1000) {
+    const rounded = n % 1000 === 0 ? (n / 1000) : (n / 1000).toFixed(1);
+    return `${rounded}K+`;
+  }
+  return `${n}+`;
+}
+
 // Profile Link Component - Fetches role from API
 function ProfileLink() {
   const { status } = useSession();
@@ -212,7 +222,7 @@ function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, rout
               </div>
             ) : (
               <button
-                onClick={() => signIn('google')}
+                onClick={() => router.push('/login')}
                 className="px-5 py-2.5 rounded-full font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 bg-orange-500 hover:bg-orange-600 text-white"
               >
                 Login / Sign Up
@@ -233,20 +243,21 @@ function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, rout
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-xl">
-          <div className="px-4 py-6 space-y-4">
-            {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
-              <Link 
-                key={item} 
-                href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : '#'} 
-                className="block py-3 px-4 text-lg font-semibold hover:bg-orange-50 rounded-xl transition"
-                onClick={closeMobileMenu}
-              >
-                {item}
-              </Link>
-            ))}
+     {/* Mobile Menu */}
+{isMenuOpen && (
+  <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-xl">
+    <div className="px-4 py-6 space-y-4">
+      {['Home', 'Services', 'About Us', 'Contact'].map((item) => (
+        <Link 
+          key={item} 
+          // Me href line eka replace karanna
+          href={item === 'Home' ? '/' : item === 'Services' ? '/trucks' : item === 'About Us' ? '/about' : '/contact'} 
+          className="block py-3 px-4 text-lg font-semibold hover:bg-orange-50 rounded-xl transition"
+          onClick={closeMobileMenu}
+        >
+          {item}
+        </Link>
+      ))}
             
             <button 
               onClick={() => {
@@ -306,7 +317,7 @@ function Navigation({ scrolled, isMenuOpen, setIsMenuOpen, session, status, rout
             ) : (
               <button
                 onClick={() => { 
-                  signIn('google'); 
+                  router.push('/login'); 
                   closeMobileMenu(); 
                 }}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
@@ -327,6 +338,16 @@ const HomeUI = () => {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // Real customer count + real customer profile photos (from DB)
+  const [customerStats, setCustomerStats] = useState({ count: null, photos: [] });
+
+  useEffect(() => {
+    fetch('/api/customer-stats')
+      .then((r) => r.json())
+      .then((data) => setCustomerStats(data))
+      .catch(() => setCustomerStats({ count: null, photos: [] }));
+  }, []);
 
   // Handle scroll effect for navbar styling
   useEffect(() => {
@@ -446,9 +467,36 @@ const HomeUI = () => {
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-gray-500 md:text-white/60 text-xs sm:text-sm">Join thousands of happy customers</span>
                   <div className="flex -space-x-2">
-                    {[1,2,3,4].map((i) => (
-                      <div key={i} className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white/80 md:border-white/20"></div>
-                    ))}
+                    {/* If logged in, show your own real profile photo first */}
+                    {session?.user?.image && (
+                      <img
+                        src={session.user.image}
+                        alt="You"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-white/80 md:border-white/20"
+                      />
+                    )}
+
+                    {/* Real customer photos pulled from the database */}
+                    {customerStats.photos
+                      .filter((src) => src !== session?.user?.image) // don't repeat your own photo
+                      .slice(0, session?.user?.image ? 3 : 4)
+                      .map((src, i) => (
+                        <img
+                          key={i}
+                          src={src}
+                          alt="Happy customer"
+                          referrerPolicy="no-referrer"
+                          className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-white/80 md:border-white/20"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ))}
+
+                    {/* Real count badge, pulled from the database */}
+                    {customerStats.count !== null && (
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white/80 md:border-white/20 flex items-center justify-center text-white text-[7px] sm:text-[9px] font-bold">
+                        {formatCustomerCount(customerStats.count)}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

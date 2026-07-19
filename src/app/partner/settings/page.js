@@ -36,6 +36,8 @@ export default function PartnerSettingsPage() {
     newPassword: '',
     confirmPassword: ''
   });
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => { if (status === 'unauthenticated') router.push('/'); }, [status]);
 
@@ -109,14 +111,48 @@ export default function PartnerSettingsPage() {
     setPasswordForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSaveSettings = (e) => {
+  const handleSaveSettings = async (e) => {
     e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError('Please fill in all password fields');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New password and confirm password do not match');
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters');
+      return;
+    }
+
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/partner/change-password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(passwordForm),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setPasswordSuccess('Password updated successfully!');
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+        setTimeout(() => setPasswordSuccess(''), 4000);
+      } else {
+        setPasswordError(data.error || 'Failed to update password');
+      }
+    } catch (err) {
+      console.error('Password update error:', err);
+      setPasswordError('Something went wrong. Please try again.');
+    } finally {
       setSaving(false);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    }, 800);
+    }
   };
 
   if (status === 'loading' || loading) {
@@ -371,6 +407,18 @@ export default function PartnerSettingsPage() {
                   <Key size={16} className="text-orange-500" /> {labels.secPref}
                 </h3>
                 <p className="text-xs text-gray-400 mb-4">{labels.secSub}</p>
+
+                {passwordError && (
+                  <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-xl flex items-center gap-2 text-xs">
+                    <AlertCircle size={14} /> {passwordError}
+                  </div>
+                )}
+                {passwordSuccess && (
+                  <div className="mb-3 bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-xl flex items-center gap-2 text-xs">
+                    <CheckCircle2 size={14} /> {passwordSuccess}
+                  </div>
+                )}
+
                 <form onSubmit={handleSaveSettings} className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">{labels.currPass}</label>

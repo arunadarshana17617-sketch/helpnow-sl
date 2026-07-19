@@ -176,3 +176,39 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// DELETE /api/bookings/:id
+// Lets the owning provider remove a booking card from their dashboard
+// (used by the long-press-to-delete / hover-to-delete UI on partner/dashboard).
+export async function DELETE(request, { params }) {
+  try {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await connectDB();
+
+    const { id } = await params;
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      // Already gone — treat as success so the UI can just remove the card
+      return NextResponse.json({ success: true, alreadyDeleted: true });
+    }
+
+    const provider = await ServiceProvider.findOne({ email: session.user.email });
+    const isProvider = provider && booking.provider && booking.provider.toString() === provider._id.toString();
+
+    if (!isProvider) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await Booking.findByIdAndDelete(id);
+
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error('Booking DELETE error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

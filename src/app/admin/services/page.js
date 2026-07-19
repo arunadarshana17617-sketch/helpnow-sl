@@ -194,7 +194,15 @@ function ServicesView({ providers, bookings, onRefetch }) {
   const W = 520, H = 160;
 
   const toX = i => 40 + (i / (labels.length - 1)) * (W - 60);
-  const toY = v => H - 20 - (v / maxV) * (H - 40);
+  // ✅ FIXED — toY only accepted ONE argument before, so calls like
+  // toY(v, pMaxV) elsewhere in this file silently ignored pMaxV and kept
+  // scaling against the CATEGORY chart's maxV. That made the
+  // "Professional Monthly Revenue" mini-chart plot its line/circles/grid
+  // against the wrong max value — visually squished or mismatched
+  // against its own axis labels. Now maxLimit defaults to maxV (so the
+  // category chart's existing toY(v) calls are unaffected) but can be
+  // overridden per call.
+  const toY = (v, maxLimit = maxV) => H - 20 - (v / maxLimit) * (H - 40);
   const pts = data.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
   const area = `${toX(0)},${H - 20} ${pts} ${toX(data.length - 1)},${H - 20}`;
 
@@ -682,8 +690,8 @@ function ServicesView({ providers, bookings, onRefetch }) {
                   <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }} key={`provider-chart-${selectedProvider._id}`}>
                     {[0, Math.round(pMaxV / 2), pMaxV].map(v => (
                       <g key={v}>
-                        <line x1={40} y1={toY(v)} x2={W - 20} y2={toY(v)} stroke="var(--border-color)" strokeWidth={1} />
-                        <text x={30} y={toY(v) + 4} fill="var(--text-muted)" fontSize={9} textAnchor="end">{v}k</text>
+                        <line x1={40} y1={toY(v, pMaxV)} x2={W - 20} y2={toY(v, pMaxV)} stroke="var(--border-color)" strokeWidth={1} />
+                        <text x={30} y={toY(v, pMaxV) + 4} fill="var(--text-muted)" fontSize={9} textAnchor="end">{v}k</text>
                       </g>
                     ))}
                     {pLabels.map((m, i) => (

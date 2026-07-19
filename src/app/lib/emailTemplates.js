@@ -393,6 +393,103 @@ export function bankProofSubmittedEmailToAdmin({ providerName, periodLabel, comm
 }
 
 // ─────────────────────────────────────────────────────────
+// ⏰  Provider ට — booking eke preferredDate eka heta kiyala reminder eka
+//     (daily cron eken yavana eka — booking eke date eka lagata pera dawase)
+// ─────────────────────────────────────────────────────────
+export function jobReminderEmailToProvider({ providerName, customerName, customerPhone, serviceCategory, jobDescription, preferredDate, customerAddress, customerCity, customerDistrict }) {
+  return {
+    subject: `⏰ Reminder: ${serviceCategory} job tomorrow — ${customerName}`,
+    html: baseLayout({
+      headerColor: '#2563eb',
+      headerTitle: '⏰ Job Scheduled Tomorrow',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Just a reminder — you have a <strong>${serviceCategory}</strong> job scheduled for <strong>tomorrow</strong>.</p>
+        <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:15px;border-radius:4px;margin:20px 0;">
+          <h3 style="margin:0 0 10px;color:#1d4ed8;">📌 Booking Details</h3>
+          ${infoTable([
+            ['Service', serviceCategory],
+            ['Scheduled Date', formatDate(preferredDate)],
+          ])}
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:15px;border-radius:4px;margin:20px 0;">
+          <h3 style="margin:0 0 10px;color:#374151;">👤 Customer Info</h3>
+          ${infoTable([
+            ['Name', customerName],
+            ['Phone', customerPhone],
+            ['Location', `${customerAddress || ''}, ${customerCity || ''}, ${customerDistrict || ''}`],
+          ])}
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fcd34d;padding:15px;border-radius:4px;margin:20px 0;">
+          <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
+          <p style="margin:0;color:#78350f;">${jobDescription}</p>
+        </div>
+        ${ctaButton('📊 View Dashboard', `${appUrl}/partner/dashboard`, '#2563eb')}
+        <p style="color:#9ca3af;font-size:13px;text-align:center;">Please make sure you're ready to attend this job on time.</p>
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 📡  Provider ට — Broadcast: nearby customer kenek category eka select karama
+//     (first-to-accept-gets-it — hama matching provider kenekutama yanawa)
+// ─────────────────────────────────────────────────────────
+export function newJobRequestBroadcastEmailToProvider({ providerName, serviceCategory, jobDescription, preferredDate, estimatedDays, customerCity, customerDistrict, distanceKm }) {
+  return {
+    subject: `⚡ New ${serviceCategory} Job Nearby — First to Accept Gets It!`,
+    html: baseLayout({
+      headerColor: '#ea580c',
+      headerTitle: '⚡ New Job Request Nearby',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">A customer near you needs a <strong>${serviceCategory}</strong>. This request has gone out to several nearby providers — <strong>whoever accepts first gets the job.</strong></p>
+        <div style="background:#fff7ed;border-left:4px solid #ea580c;padding:15px;border-radius:4px;margin:20px 0;">
+          ${infoTable([
+            ['Service', serviceCategory],
+            ['Preferred Date', formatDate(preferredDate)],
+            ['Estimated Days', `${estimatedDays} day(s)`],
+            ['Area', `${customerCity || ''}, ${customerDistrict || ''}`],
+            ...(distanceKm != null
+              ? [['Distance from you', distanceKm < 1 ? `${Math.round(distanceKm * 1000)}m` : `${distanceKm.toFixed(1)}km`]]
+              : []),
+          ])}
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fcd34d;padding:15px;border-radius:4px;margin:20px 0;">
+          <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
+          <p style="margin:0;color:#78350f;">${jobDescription}</p>
+        </div>
+        ${ctaButton('⚡ Accept This Job Now', `${appUrl}/partner/dashboard`, '#ea580c')}
+        <p style="color:#9ca3af;font-size:13px;text-align:center;">Act fast — this job goes to whoever accepts it first.</p>
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 📡  Provider ට — Broadcast job eka anith kenek claim kara ivarai kiyala
+//     (mekata email eka yanne "loss" unu providers ta witharai)
+// ─────────────────────────────────────────────────────────
+export function jobTakenEmailToProvider({ providerName, serviceCategory, jobDescription }) {
+  return {
+    subject: `❌ Job Already Taken — ${serviceCategory}`,
+    html: baseLayout({
+      headerColor: '#6b7280',
+      headerTitle: '❌ Job No Longer Available',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Sorry — the <strong>${serviceCategory}</strong> job you were notified about has already been accepted by another provider.</p>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;padding:15px;border-radius:4px;margin:20px 0;">
+          <p style="margin:0;color:#6b7280;font-size:14px;">${jobDescription}</p>
+        </div>
+        <p style="color:#9ca3af;font-size:13px;">Don't worry — we'll notify you as soon as a new job comes in near you.</p>
+        ${ctaButton('📊 View Dashboard', `${appUrl}/partner/dashboard`, '#6b7280')}
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
 // 6️⃣  Provider ට — Customer rating දුන්නාම
 // ─────────────────────────────────────────────────────────
 export function newRatingEmailToProvider({ providerName, customerName, serviceCategory, rating, avgRating, totalReviews }) {
@@ -419,6 +516,44 @@ export function newRatingEmailToProvider({ providerName, customerName, serviceCa
         </div>
         ${ctaButton('📊 View My Dashboard', `${appUrl}/partner/dashboard`, '#ca8a04')}
         <p style="color:#9ca3af;font-size:13px;text-align:center;">Keep up the great work! 💪</p>
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// 📩  Admin ට — Contact us page eken message ekak awama
+// ─────────────────────────────────────────────────────────
+const CONTACT_SUBJECT_LABELS = {
+  general: 'General Question',
+  booking: 'Booking Support',
+  partner: 'Become a Partner',
+  billing: 'Billing Issue',
+};
+
+export function contactFormEmailToAdmin({ name, email, phone, subject, message }) {
+  const subjectLabel = CONTACT_SUBJECT_LABELS[subject] || subject || 'General Question';
+  return {
+    subject: `📩 New Contact Message — ${subjectLabel} (${name})`,
+    html: baseLayout({
+      headerColor: '#ea580c',
+      headerTitle: '📩 New Contact Form Message',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi Admin,</p>
+        <p style="color:#6b7280;">Someone submitted the contact form on the website.</p>
+        <div style="background:#fff7ed;border-left:4px solid #ea580c;padding:15px;border-radius:4px;margin:20px 0;">
+          ${infoTable([
+            ['Name', name],
+            ['Email', email],
+            ['Phone', phone],
+            ['Subject', subjectLabel],
+          ])}
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:15px;border-radius:4px;margin:20px 0;">
+          <h3 style="margin:0 0 8px;color:#374151;">📝 Message</h3>
+          <p style="margin:0;color:#111827;white-space:pre-wrap;">${message}</p>
+        </div>
+        <p style="color:#9ca3af;font-size:13px;text-align:center;">Reply directly to ${email} to respond.</p>
       `
     })
   };

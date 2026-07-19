@@ -36,7 +36,8 @@ import {
   Paintbrush,
   Wind,
   Search,
-  Leaf
+  Leaf,
+  Car
 } from 'lucide-react';
 
 const PartnerRegister = () => {
@@ -129,6 +130,7 @@ const PartnerRegister = () => {
     { id: 'painter',     name: 'Painter',         icon: <Paintbrush /> },
     { id: 'ac',          name: 'AC Technician',   icon: <Wind /> },
     { id: 'gardener',    name: 'Gardener',        icon: <Leaf /> },
+    { id: 'mechanic',    name: 'Mechanic',        icon: <Car /> },
   ];
 
   // Merge DB counts into category list

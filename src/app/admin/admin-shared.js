@@ -240,15 +240,16 @@ export function ErrorBanner({ message, onRetry }) {
 
 const NAV_ITEMS = [
   { id: "dashboard",     label: "Dashboard",     icon: "⊞"  },
-  { id: "professionals", label: "Professionals", icon: "👷", badge: "NEW" },
+  { id: "professionals", label: "Professionals", icon: "👷" },
   { id: "customers",     label: "Customers",     icon: "👥" },
   { id: "services",      label: "Services",      icon: "🔧" },
   { id: "revenue",       label: "Revenue",       icon: "💰" },
   { id: "settings",      label: "Settings",      icon: "⚙️" },
+  { id: "security-logs", label: "Security Logs", icon: "🛡️" },
   { id: "support",       label: "Support",       icon: "❓" },
 ];
 
-export function Sidebar({ active, platformName }) {
+export function Sidebar({ active, platformName, pendingCount = 0 }) {
   const router = useRouter();
   return (
     <aside style={{
@@ -298,11 +299,11 @@ export function Sidebar({ active, platformName }) {
             >
               <span style={{ fontSize: "calc(15px * var(--font-scale))" }}>{item.icon}</span>
               <span>{item.label}</span>
-              {item.badge && (
+              {item.id === "professionals" && pendingCount > 0 && (
                 <span style={{
                   marginLeft: "auto", background: "#f97316", color: "#fff",
-                  fontSize: "calc(9px * var(--font-scale))", fontWeight: 700, padding: "2px 5px", borderRadius: 4,
-                }}>{item.badge}</span>
+                  fontSize: "calc(9px * var(--font-scale))", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                }}>{pendingCount > 99 ? "99+" : pendingCount}</span>
               )}
             </button>
           );
@@ -535,8 +536,16 @@ export function RevenueChart({ bookings }) {
     return latestDate;
   }, [bookings]);
 
+  // ✅ FIXED — this used to be a separate `months` useMemo PLUS a
+  // bookings.forEach() that ran on every render and mutated the same
+  // memoized array with `+=`. Since useMemo caches the array between
+  // renders, every re-render (hover, notification poll, etc.) kept
+  // ADDING to the previous total instead of recalculating fresh —
+  // so the revenue numbers grew larger every time the component
+  // re-rendered. Now everything happens inside ONE useMemo that builds
+  // a brand new array from scratch each time its dependencies change.
   const months = useMemo(() => {
-    return Array.from({ length: 6 }, (_, i) => {
+    const buckets = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 5 + i, 1);
       return {
         label: `${d.toLocaleString("en", { month: "short" })} '${String(d.getFullYear()).slice(-2)}`,
@@ -545,18 +554,20 @@ export function RevenueChart({ bookings }) {
         total: 0
       };
     });
-  }, [referenceDate]);
 
-  bookings.forEach(b => {
-    if (b.status === "cancelled") return;
-    const d = getBookingDate(b);
-    if (!d) return;
+    bookings.forEach(b => {
+      if (b.status === "cancelled") return;
+      const d = getBookingDate(b);
+      if (!d) return;
 
-    const idx = months.findIndex(m => m.month === d.getMonth() && m.year === d.getFullYear());
-    if (idx !== -1) {
-      months[idx].total += getBookingCost(b);
-    }
-  });
+      const idx = buckets.findIndex(m => m.month === d.getMonth() && m.year === d.getFullYear());
+      if (idx !== -1) {
+        buckets[idx].total += getBookingCost(b);
+      }
+    });
+
+    return buckets;
+  }, [referenceDate, bookings]);
 
   const data   = months.map(m => Math.round(m.total / 1000));
   const labels = months.map(m => m.label);
@@ -1023,6 +1034,44 @@ export function AdminPageLayout({ activeNav, refetch, loading, error, children }
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [pendingProfessionalsCount, setPendingProfessionalsCount] = useState(0);
+
+  // ✅ Real, live count of professionals the admin hasn't opened yet.
+  // This is what the "NEW" badge on the Professionals nav item reflects.
+  // It goes to 0 (badge disappears) once every new professional's
+  // profile has been opened, and comes back automatically the moment
+  // a new one registers.
+  const fetchPendingProfessionals = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/dashboard");
+      if (res.ok) {
+        const data = await res.json();
+        const provList = data.providers || [];
+        const count = provList.filter(p => p.isNewForAdmin === true).length;
+        setPendingProfessionalsCount(count);
+      }
+    } catch (err) {
+      console.error("Pending professionals fetch error:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingProfessionals();
+    const interval = setInterval(fetchPendingProfessionals, 15000);
+    return () => clearInterval(interval);
+  }, [fetchPendingProfessionals]);
+
+  // ✅ NEW — instant sidebar update the moment a professional is opened
+  // on /admin/professionals, without waiting for the next 15s poll.
+  // ProfessionalsView dispatches this event right after its mark-seen
+  // API call succeeds.
+  useEffect(() => {
+    const handleProfessionalSeen = () => {
+      setPendingProfessionalsCount(prev => Math.max(0, prev - 1));
+    };
+    window.addEventListener("admin:professional-seen", handleProfessionalSeen);
+    return () => window.removeEventListener("admin:professional-seen", handleProfessionalSeen);
+  }, []);
 
   const playAlertSound = useCallback(() => {
     if (!settings.notificationsEnabled) return;
@@ -1112,7 +1161,7 @@ export function AdminPageLayout({ activeNav, refetch, loading, error, children }
 
   return (
     <div style={{ background: "var(--bg-main)", minHeight: "100vh", fontFamily: "'Segoe UI',system-ui,sans-serif", color: "var(--text-main)", transition: "background 0.2s, color 0.15s" }}>
-      <Sidebar active={activeNav} platformName={settings.platformName} />
+      <Sidebar active={activeNav} platformName={settings.platformName} pendingCount={pendingProfessionalsCount} />
 
       <div style={{ marginLeft: 220, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <Topbar 

@@ -9,8 +9,9 @@ import {
   Clock, Megaphone, Banknote, Calendar, Loader2, AlertCircle, TrendingUp,
   Briefcase, CheckCircle2, XCircle, ArrowLeft, RefreshCw, BadgeCheck,
   Eye, Phone, MapPin, ClipboardList, Search, MessageSquareCode, MessageSquare, ThumbsUp,
-  BarChart2, Play, Navigation, NavigationOff, Settings, LogOut, ShieldAlert
+  BarChart2, Play, Navigation, NavigationOff, Settings, LogOut, ShieldAlert, MessageCircle, Heart, Trash2
 } from 'lucide-react';
+import StatusTray from '@/app/Components/StatusTray';
 
 // ── Notification Dropdown Component ─────────────────────────────
 function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMarkAllRead, language }) {
@@ -261,6 +262,10 @@ export default function PartnerDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Messenger-style "new message" toast state (pops down from the top, like the bell)
+  const [messageToast, setMessageToast] = useState(null);
+  const seenMessageIdsRef = useRef(null); // null = not initialized yet (first load)
+
   // Search and filter states inside the bookings view
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -276,11 +281,58 @@ export default function PartnerDashboard() {
 
   // Interactive Partial Payment Custom Amount Input State
   const [customPayAmount, setCustomPayAmount] = useState('');
+  const [activePayoutIndex, setActivePayoutIndex] = useState(null);
+  const [activeUpcomingIndex, setActiveUpcomingIndex] = useState(null);
+
+  // 🗑️ Delete-booking UX — desktop: hover reveals the trash icon.
+  // Mobile: long-press (touch-and-hold) reveals it, since there's no hover.
+  const [revealDeleteId, setRevealDeleteId] = useState(null);
+  const [bookingToDelete, setBookingToDelete] = useState(null);
+  const [deletingBooking, setDeletingBooking] = useState(false);
+  const longPressTimer = useRef(null);
+
+  const handleCardTouchStart = (bookingId) => {
+    longPressTimer.current = setTimeout(() => {
+      setRevealDeleteId(bookingId);
+    }, 500); // hold for 500ms
+  };
+  const handleCardTouchEnd = () => {
+    clearTimeout(longPressTimer.current);
+  };
+  const handleCardClick = (bookingId) => {
+    // Tapping the card again while its delete icon is revealed hides it
+    if (revealDeleteId === bookingId) setRevealDeleteId(null);
+  };
+
+  const confirmDeleteBooking = async () => {
+    if (!bookingToDelete) return;
+    setDeletingBooking(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingToDelete._id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setBookings(prev => prev.filter(b => b._id !== bookingToDelete._id));
+        setRevealDeleteId(null);
+        setBookingToDelete(null);
+      } else {
+        alert(data.error || 'Failed to delete booking');
+      }
+    } catch (err) {
+      console.error('Delete booking error:', err);
+      alert('Something went wrong while deleting.');
+    } finally {
+      setDeletingBooking(false);
+    }
+  };
 
   useEffect(() => { if (status === 'unauthenticated') router.push('/'); }, [status]);
   useEffect(() => { if (status === 'authenticated') {
     fetchDashboardData();
     fetchNotifications();
+
+    // Poll for new notifications/messages every 20s so the "new message"
+    // toast can pop up without the user manually refreshing.
+    const pollId = setInterval(fetchNotifications, 20000);
 
     // Set saved language state
     const savedLang = localStorage.getItem('helpnow_lang') || 'en';
@@ -289,7 +341,10 @@ export default function PartnerDashboard() {
     // Sync language automatically when changed in settings tab
     const syncLang = () => setLanguage(localStorage.getItem('helpnow_lang') || 'en');
     window.addEventListener('storage', syncLang);
-    return () => window.removeEventListener('storage', syncLang);
+    return () => {
+      window.removeEventListener('storage', syncLang);
+      clearInterval(pollId);
+    };
   }}, [status]);
 
   // Dynamic Deep Linking: Notification click link handle logic
@@ -359,6 +414,23 @@ export default function PartnerDashboard() {
       if (json.success) {
         setNotifications(json.notifications);
         setUnreadCount(json.unreadCount);
+
+        // Detect newly-arrived messages (status replies/reactions) to show a toast
+        const messageNotifs = json.notifications.filter(
+          n => n.type === 'status_reply' || n.type === 'status_reaction'
+        );
+
+        if (seenMessageIdsRef.current === null) {
+          // First load — just remember what's already there, don't toast for old messages
+          seenMessageIdsRef.current = new Set(messageNotifs.map(n => n._id));
+        } else {
+          const newOnes = messageNotifs.filter(n => !seenMessageIdsRef.current.has(n._id));
+          if (newOnes.length > 0) {
+            setMessageToast(newOnes[0]);
+            setTimeout(() => setMessageToast(null), 5000);
+          }
+          seenMessageIdsRef.current = new Set(messageNotifs.map(n => n._id));
+        }
       }
     } catch (err) {
       console.error(err);
@@ -385,6 +457,22 @@ export default function PartnerDashboard() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAll: true })
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Used by the Messenger-style inbox: marks a status reply/reaction as
+  // read WITHOUT navigating away (unlike handleNotificationClick), since
+  // the message is opened inline in the same panel.
+  const handleMessageRead = async (notif) => {
+    try {
+      await fetch('/api/partner/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: notif._id })
       });
       fetchNotifications();
     } catch (err) {
@@ -574,11 +662,51 @@ export default function PartnerDashboard() {
   const payoutEntries = monthlyEntries.slice(-5);
   const maxPayoutValue = Math.max(...payoutEntries.map(([_, val]) => val.earnings), 1000);
 
+  // ✅ REAL upcoming appointments — next 7 days, from actual scheduled bookings
+  // (previously this chart accidentally reused the same "last 6 months completed
+  // earnings" dataset as the Payout chart below it, which is why it never
+  // reflected real upcoming work)
+  const upcomingDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const upcomingCounts = upcomingDays.map(day => ({
+    date: day,
+    count: bookings.filter(b => {
+      if (!['confirmed', 'in_progress'].includes(b.status)) return false;
+      if (!b.preferredDate) return false;
+      return new Date(b.preferredDate).toDateString() === day.toDateString();
+    }).length,
+  }));
+  const maxUpcomingValue = Math.max(...upcomingCounts.map(d => d.count), 1);
+  const totalUpcomingCount = upcomingCounts.reduce((sum, d) => sum + d.count, 0);
+
+  // Builds a clean SVG path across ANY number of points — avoids hardcoding
+  // point indices (the old Payout curve silently skipped data point #4
+  // because its path string only referenced indices 0,1,2,4)
+  const buildChartPaths = (values, maxValue, width, height) => {
+    const step = values.length > 1 ? width / (values.length - 1) : width;
+    const points = values.map((v, i) => ({
+      x: i * step,
+      y: height - (v / (maxValue || 1)) * height,
+    }));
+    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`;
+    return { points, linePath, areaPath };
+  };
+
+  const upcomingChart = buildChartPaths(upcomingCounts.map(d => d.count), maxUpcomingValue, 500, 120);
+  const payoutChart = buildChartPaths(payoutEntries.map(([_, val]) => val.earnings), maxPayoutValue, 100, 40);
+
   // Filter Bookings logic in bookings view
   const filteredBookings = bookings.filter(b => {
-    const matchesSearch = b.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (b.serviceProfession || b.serviceCategory)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          b.customerCity?.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q ||
+                          (b.customerName || '').toLowerCase().includes(q) ||
+                          (b.serviceProfession || b.serviceCategory || '').toLowerCase().includes(q) ||
+                          (b.customerCity || '').toLowerCase().includes(q);
     const matchesStatus = statusFilter === 'all' ? true : b.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -840,6 +968,28 @@ export default function PartnerDashboard() {
     // ✅ restricted parent height & hidden scroll to create shell
     <div className="h-screen w-screen bg-[#f7f8fc] flex overflow-hidden">
 
+      {/* ── New message toast — pops down from the top like a notification ── */}
+      {messageToast && (
+        <div
+          onClick={() => { setMessageToast(null); router.push('/partner/messages'); }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-white shadow-2xl border border-gray-100 rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer max-w-sm w-[92%]"
+        >
+          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-blue-100 flex items-center justify-center">
+            {messageToast.senderPhoto ? (
+              <img src={messageToast.senderPhoto} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-blue-500 font-bold">
+                {messageToast.senderName?.charAt(0)?.toUpperCase() || '?'}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-slate-800 truncate">{messageToast.senderName}</p>
+            <p className="text-[11px] text-slate-500 truncate">{messageToast.message}</p>
+          </div>
+        </div>
+      )}
+
       {/* ── HelpNow Sidebar (Independent Menu Scroll Enabled) ── */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-60 h-full bg-[#0f172a] flex flex-col transform transition-transform duration-300 shrink-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:z-auto`}>
@@ -917,14 +1067,24 @@ export default function PartnerDashboard() {
           </div>
           <div className="flex items-center gap-2">
             
-            {/* ── Facebook Style Notification Bell Component ── */}
+            {/* ── Facebook Style Notification Bell Component (system notifications only) ── */}
             <NotificationDropdown
-              notifications={notifications}
-              unreadCount={unreadCount}
+              notifications={notifications.filter(n => n.type !== 'status_reply' && n.type !== 'status_reaction')}
+              unreadCount={notifications.filter(n => !n.isRead && n.type !== 'status_reply' && n.type !== 'status_reaction').length}
               onMarkAsRead={handleNotificationClick}
               onMarkAllRead={handleMarkAllNotificationsRead}
               language={language}
             />
+
+            {/* ── Messenger-style icon: takes you to the full /partner/messages page ── */}
+            <Link href="/partner/messages" className="p-2 rounded-xl hover:bg-gray-100 transition relative">
+              <MessageCircle size={18} className="text-gray-500" />
+              {notifications.filter(n => !n.isRead && (n.type === 'status_reply' || n.type === 'status_reaction')).length > 0 && (
+                <span className="absolute top-1.5 right-1.5 bg-blue-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-bounce shadow">
+                  {notifications.filter(n => !n.isRead && (n.type === 'status_reply' || n.type === 'status_reaction')).length}
+                </span>
+              )}
+            </Link>
 
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200 text-black font-semibold shrink-0">
               {providerProfile.photo
@@ -956,6 +1116,9 @@ export default function PartnerDashboard() {
                 <Zap size={220} className="text-white" />
               </div>
             </div>
+
+            {/* WhatsApp-style Status Tray: post & view photo/video statuses */}
+            <StatusTray isProvider={true} />
 
             {/* Stats Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
@@ -1008,12 +1171,12 @@ export default function PartnerDashboard() {
               {/* COLUMN 1 (5/12) - Upcoming & Recent Bookings */}
               <div className="col-span-12 lg:col-span-5 space-y-5">
                 
-                {/* Dynamic Upcoming Appointments graph */}
+                {/* Real Upcoming Appointments graph — next 7 days */}
                 <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="font-bold text-gray-900 text-xs">{labels.upcomingAppointments}</h4>
-                      <p className="text-[10px] text-gray-400 mt-0.5 font-bold">{labels.bookingTrends}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5 font-bold">Next 7 days · {totalUpcomingCount} scheduled</p>
                     </div>
                     {/* ✅ viewAllBookings orange button styled */}
                     <button onClick={() => setActiveView('bookings')} className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-bold px-3.5 py-1.5 rounded-xl transition shadow-sm">
@@ -1021,76 +1184,76 @@ export default function PartnerDashboard() {
                     </button>
                   </div>
 
-                  <div className="relative pt-2">
-                    <div className="absolute left-0 top-0 h-28 flex flex-col justify-between text-[8px] text-gray-400 font-bold select-none">
-                      <span>{maxEarningsValue.toLocaleString()}</span>
-                      <span>{(maxEarningsValue * 0.75).toFixed(0)}</span>
-                      <span>{(maxEarningsValue * 0.5).toFixed(0)}</span>
-                      <span>{(maxEarningsValue * 0.25).toFixed(0)}</span>
-                      <span>0</span>
+                  {totalUpcomingCount === 0 ? (
+                    <div className="h-28 flex items-center justify-center">
+                      <p className="text-xs text-gray-400 text-center">No appointments scheduled in the next 7 days</p>
                     </div>
+                  ) : (
+                    <div className="relative pt-2">
+                      <div className="absolute left-0 top-0 h-28 flex flex-col justify-between text-[8px] text-gray-400 font-bold select-none">
+                        <span>{maxUpcomingValue}</span>
+                        <span>{Math.ceil(maxUpcomingValue * 0.5)}</span>
+                        <span>0</span>
+                      </div>
 
-                    <div className="pl-8 h-28">
-                      <svg viewBox="0 0 500 120" className="w-full h-full">
-                        <defs>
-                          <linearGradient id="chartOrangeMain" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f97316" stopOpacity="0.22"/>
-                            <stop offset="100%" stopColor="#f97316" stopOpacity="0"/>
-                          </linearGradient>
-                          <linearGradient id="chartOrangeSoft" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#fb923c" stopOpacity="0.14"/>
-                            <stop offset="100%" stopColor="#fb923c" stopOpacity="0"/>
-                          </linearGradient>
-                        </defs>
+                      <div className="pl-8 h-28">
+                        <svg viewBox="0 0 500 120" className="w-full h-full overflow-visible">
+                          <defs>
+                            <linearGradient id="chartOrangeMain" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#f97316" stopOpacity="0.22"/>
+                              <stop offset="100%" stopColor="#f97316" stopOpacity="0"/>
+                            </linearGradient>
+                          </defs>
 
-                        <line x1="0" y1="0" x2="500" y2="0" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
-                        <line x1="0" y1="30" x2="500" y2="30" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
-                        <line x1="0" y1="60" x2="500" y2="60" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
-                        <line x1="0" y1="90" x2="500" y2="90" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
-                        <line x1="0" y1="120" x2="500" y2="120" stroke="#e2e8f0" strokeWidth="1" />
+                          <line x1="0" y1="0" x2="500" y2="0" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
+                          <line x1="0" y1="60" x2="500" y2="60" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3" />
+                          <line x1="0" y1="120" x2="500" y2="120" stroke="#e2e8f0" strokeWidth="1" />
 
-                        {/* ✅ Strong Orange Curve */}
-                        <path d={`M 0 ${120 - ((monthlyEntries[0]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 100 ${120 - ((monthlyEntries[1]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 200 ${120 - ((monthlyEntries[2]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 300 ${120 - ((monthlyEntries[3]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 400 ${120 - ((monthlyEntries[4]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 500 ${120 - ((monthlyEntries[5]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 500 120 L 0 120 Z`} fill="url(#chartOrangeMain)" />
-                        
-                        <path d={`M 0 ${120 - ((monthlyEntries[0]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 100 ${120 - ((monthlyEntries[1]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 200 ${120 - ((monthlyEntries[2]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 300 ${120 - ((monthlyEntries[3]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 400 ${120 - ((monthlyEntries[4]?.[1]?.earnings || 0) / maxEarningsValue) * 120} 
-                                 L 500 ${120 - ((monthlyEntries[5]?.[1]?.earnings || 0) / maxEarningsValue) * 120}`} 
-                              fill="none" stroke="#f97316" strokeWidth="2.5" />
+                          {/* ✅ Real scheduled-appointment counts per day, correctly plotted point-for-point */}
+                          <path d={upcomingChart.areaPath} fill="url(#chartOrangeMain)" />
+                          <path d={upcomingChart.linePath} fill="none" stroke="#f97316" strokeWidth="2.5" />
 
-                        {/* ✅ Soft Orange Curve */}
-                        <path d={`M 0 ${120 - ((monthlyEntries[0]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 100 ${120 - ((monthlyEntries[1]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 200 ${120 - ((monthlyEntries[2]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 300 ${120 - ((monthlyEntries[3]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 400 ${120 - ((monthlyEntries[4]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 500 ${120 - ((monthlyEntries[5]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 500 120 L 0 120 Z`} fill="url(#chartOrangeSoft)" />
-                        
-                        <path d={`M 0 ${120 - ((monthlyEntries[0]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 100 ${120 - ((monthlyEntries[1]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 200 ${120 - ((monthlyEntries[2]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 300 ${120 - ((monthlyEntries[3]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 400 ${120 - ((monthlyEntries[4]?.[1]?.jobs || 0) / maxJobsValue) * 120} 
-                                 L 500 ${120 - ((monthlyEntries[5]?.[1]?.jobs || 0) / maxJobsValue) * 120}`} 
-                              fill="none" stroke="#fb923c" strokeWidth="1.5" />
-                      </svg>
+                          {/* 👆 Hover / tap a day to see the exact appointment count */}
+                          {upcomingChart.points.map((p, i) => {
+                            const dayLabel = upcomingCounts[i].date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            const count = upcomingCounts[i].count;
+                            const isActive = activeUpcomingIndex === i;
+                            const boxW = 74;
+                            const boxX = Math.min(Math.max(p.x - boxW / 2, 2), 500 - boxW - 2);
+                            return (
+                              <g key={i}>
+                                <circle
+                                  cx={p.x} cy={p.y} r="14" fill="transparent"
+                                  style={{ cursor: 'pointer' }}
+                                  onMouseEnter={() => setActiveUpcomingIndex(i)}
+                                  onMouseLeave={() => setActiveUpcomingIndex(null)}
+                                  onClick={() => setActiveUpcomingIndex(isActive ? null : i)}
+                                />
+                                <circle cx={p.x} cy={p.y} r={isActive ? 6 : 4} fill="#f97316" style={{ pointerEvents: 'none' }} />
+                                {isActive && (
+                                  <g style={{ pointerEvents: 'none' }}>
+                                    <rect x={boxX} y={Math.max(p.y - 34, 2)} width={boxW} height="26" rx="4" fill="#0f172a" />
+                                    <text x={boxX + boxW / 2} y={Math.max(p.y - 21, 15)} fontSize="9" fill="#fb923c" textAnchor="middle" fontWeight="bold">
+                                      {dayLabel}
+                                    </text>
+                                    <text x={boxX + boxW / 2} y={Math.max(p.y - 9, 27)} fontSize="10" fill="#fff" textAnchor="middle" fontWeight="bold">
+                                      {count} appointment{count !== 1 ? 's' : ''}
+                                    </text>
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      </div>
+
+                      <div className="flex justify-between text-[8px] text-slate-400 pl-8 pt-1 font-bold">
+                        {upcomingCounts.map((d, i) => (
+                          <span key={i}>{d.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                        ))}
+                      </div>
                     </div>
-
-                    <div className="flex justify-between text-[8px] text-slate-400 pl-8 pt-1 font-bold">
-                      {monthlyEntries.map(([key]) => (
-                        <span key={key}>{key.split(' ')[0]}</span>
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Recent Bookings Table Panel */}
@@ -1298,22 +1461,55 @@ export default function PartnerDashboard() {
                     </div>
 
                     <div className="pl-8 h-20">
-                      <svg viewBox="0 0 100 40" className="w-full h-full">
+                      <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
                         <defs>
                           <linearGradient id="payoutGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#f97316" stopOpacity="0.2"/>
                             <stop offset="100%" stopColor="#f97316" stopOpacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d={`M 0 ${40 - ((payoutEntries[0]?.[1]?.earnings || 0) / maxPayoutValue) * 40} 
-                                 Q 25 ${40 - ((payoutEntries[1]?.[1]?.earnings || 0) / maxPayoutValue) * 40}, 50 ${40 - ((payoutEntries[2]?.[1]?.earnings || 0) / maxPayoutValue) * 40} 
-                                 T 100 ${40 - ((payoutEntries[4]?.[1]?.earnings || 0) / maxPayoutValue) * 40} 
-                                 L 100 40 L 0 40 Z`} fill="url(#payoutGrad)" />
-                        
-                        <path d={`M 0 ${40 - ((payoutEntries[0]?.[1]?.earnings || 0) / maxPayoutValue) * 40} 
-                                 Q 25 ${40 - ((payoutEntries[1]?.[1]?.earnings || 0) / maxPayoutValue) * 40}, 50 ${40 - ((payoutEntries[2]?.[1]?.earnings || 0) / maxPayoutValue) * 40} 
-                                 T 100 ${40 - ((payoutEntries[4]?.[1]?.earnings || 0) / maxPayoutValue) * 40}`} 
-                              fill="none" stroke="#f97316" strokeWidth="1.2" />
+                        {/* ✅ Plots ALL 5 months correctly — the old path string
+                            hardcoded x=0,25,50,100 and silently skipped the 4th
+                            data point (x=75), which is why this curve looked off */}
+                        <path d={payoutChart.areaPath} fill="url(#payoutGrad)" />
+                        <path d={payoutChart.linePath} fill="none" stroke="#f97316" strokeWidth="1.2" />
+
+                        {/* 👆 Hover / tap a point to see that month's exact amount */}
+                        {payoutChart.points.map((p, i) => {
+                          const monthLabel = payoutEntries[i]?.[0] || '';
+                          const amount = payoutEntries[i]?.[1]?.earnings || 0;
+                          const isActive = activePayoutIndex === i;
+                          const boxW = 34;
+                          const boxX = Math.min(Math.max(p.x - boxW / 2, 1), 100 - boxW - 1);
+                          return (
+                            <g key={i}>
+                              {/* wider invisible hit-area — easier to tap on mobile than the tiny visible dot */}
+                              <circle
+                                cx={p.x} cy={p.y} r="6" fill="transparent"
+                                style={{ cursor: 'pointer' }}
+                                onMouseEnter={() => setActivePayoutIndex(i)}
+                                onMouseLeave={() => setActivePayoutIndex(null)}
+                                onClick={() => setActivePayoutIndex(isActive ? null : i)}
+                              />
+                              <circle
+                                cx={p.x} cy={p.y} r={isActive ? 3 : 1.8}
+                                fill="#f97316" stroke="#fff" strokeWidth="0.8"
+                                style={{ pointerEvents: 'none' }}
+                              />
+                              {isActive && (
+                                <g style={{ pointerEvents: 'none' }}>
+                                  <rect x={boxX} y={Math.max(p.y - 15, 1)} width={boxW} height="12" rx="2" fill="#0f172a" />
+                                  <text x={boxX + boxW / 2} y={Math.max(p.y - 10, 6)} fontSize="4" fill="#fb923c" textAnchor="middle" fontWeight="bold">
+                                    {monthLabel}
+                                  </text>
+                                  <text x={boxX + boxW / 2} y={Math.max(p.y - 5, 11)} fontSize="4.5" fill="#fff" textAnchor="middle" fontWeight="bold">
+                                    Rs. {amount.toLocaleString()}
+                                  </text>
+                                </g>
+                              )}
+                            </g>
+                          );
+                        })}
                       </svg>
                     </div>
 
@@ -1368,7 +1564,7 @@ export default function PartnerDashboard() {
                       onClick={() => setStatusFilter(tab)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${
                         statusFilter === tab
-                          ? 'bg-orange-50 text-white border-orange-500 shadow-sm'
+                          ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
                           : 'bg-slate-50 text-slate-600 border-gray-200 hover:border-orange-200'
                       }`}
                     >
@@ -1386,7 +1582,25 @@ export default function PartnerDashboard() {
                   const tag = STATUS_TAGS[booking.status] || STATUS_TAGS.pending;
                   const estimatedTotal = (booking.dailyRate || 0) * (booking.estimatedDays || 1);
                   return (
-                    <div key={booking._id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition flex flex-col justify-between">
+                    <div
+                      key={booking._id}
+                      className="relative group bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition flex flex-col justify-between"
+                      onTouchStart={() => handleCardTouchStart(booking._id)}
+                      onTouchEnd={handleCardTouchEnd}
+                      onTouchMove={handleCardTouchEnd}
+                      onClick={() => handleCardClick(booking._id)}
+                    >
+                      {/* 🗑️ Delete icon — desktop: appears on hover (group-hover).
+                          mobile: appears after a long-press (revealDeleteId). */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setBookingToDelete(booking); }}
+                        className={`absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md transition-opacity ${
+                          revealDeleteId === booking._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                        title="Delete booking"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                       <div>
                         {/* Card Header */}
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
@@ -1694,6 +1908,45 @@ export default function PartnerDashboard() {
               </Link>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ Delete Booking Confirmation Modal */}
+      {bookingToDelete && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+          onClick={() => !deletingBooking && setBookingToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={26} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Delete this booking?</h3>
+            <p className="text-xs text-gray-500 mb-1">
+              {bookingToDelete.customerName} — {bookingToDelete.serviceCategory}
+            </p>
+            <p className="text-xs text-gray-400 mb-6">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setBookingToDelete(null)}
+                disabled={deletingBooking}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl transition text-sm disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteBooking}
+                disabled={deletingBooking}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+              >
+                {deletingBooking ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {deletingBooking ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

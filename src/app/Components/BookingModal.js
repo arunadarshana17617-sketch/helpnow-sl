@@ -203,10 +203,26 @@ export default function BookingModal({ provider: initialProvider, service, onClo
     }
   }, [status, session]);
 
+  // ✅ Optimized customer profile checking with cache-busting and HTML response validation
   const checkExistingCustomer = async () => {
     setProfileLoading(true);
     try {
-      const res = await fetch('/api/customer/profile');
+      // Avoid client-side caching of empty user responses
+      const res = await fetch(`/api/customer/profile?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      // Gracefully prevent parsing issues if server returns an HTML error page
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("API did not return JSON. Status:", res.status);
+        setStep(2);
+        return;
+      }
+
       const data = await res.json();
 
       if (data.success && data.customer) {
@@ -227,6 +243,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
         setStep(2);
       }
     } catch (err) {
+      console.error("Profile check failed:", err);
       setStep(2);
     } finally {
       setProfileLoading(false);
@@ -519,7 +536,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
                         <p className="text-xs text-amber-600 font-medium">⚠ Location blocked</p>
                       ) : locationOn && distLabel ? (
                         <p className="text-xs text-green-700 font-medium">
-                          ✓ Location ON — {liveProvider.fullName} ඔයාගෙන් <strong>{distLabel}</strong> දුරේ ඉන්නවා
+                          ✓ Location ON — {liveProvider.fullName} ඔයාගෙන් <strong>{distLabel}</strong> duren innowa
                         </p>
                       ) : locationOn ? (
                         <p className="text-xs text-green-600 font-medium">✓ Location ON</p>
@@ -592,7 +609,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
               <div className="bg-blue-50 rounded-xl p-3 flex items-center gap-2 border border-blue-100">
                 <MapPin size={16} className="text-blue-500 flex-shrink-0" />
                 <p className="text-xs text-blue-700">
-                  Provider ගේ area: <strong>{liveProvider.city}, {liveProvider.district}</strong>
+                  Provider ge area: <strong>{liveProvider.city}, {liveProvider.district}</strong>
                   {liveProvider.maxDistance && ` · ${liveProvider.maxDistance}km radius ඇතුළේ travels`}
                 </p>
               </div>

@@ -1,89 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import {
   Wrench, Users, DollarSign, Calendar, ShieldCheck, Clock, CheckCircle2,
   XCircle, AlertCircle, Loader2, Save, FileText, Settings, Award, RefreshCw
 } from 'lucide-react';
-
-const NAV_ITEMS = [
-  { id: "dashboard",     label: "Dashboard",     icon: "⊞"  },
-  { id: "professionals", label: "Professionals", icon: "👷" },
-  { id: "customers",     label: "Customers",     icon: "👥" },
-  { id: "services",      label: "Services",      icon: "🔧" },
-  { id: "revenue",       label: "Revenue / Bills", icon: "💰" },
-  { id: "settings",      label: "Settings",      icon: "⚙️" },
-];
-
-function Sidebar({ active, platformName, router }) {
-  return (
-    <aside style={{
-      width: 220, minWidth: 220, background: "var(--bg-sidebar)",
-      display: "flex", flexDirection: "column", height: "100vh",
-      position: "fixed", left: 0, top: 0, zIndex: 100,
-      borderRight: "1px solid var(--border-color)",
-    }}>
-      <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--border-color)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 8,
-            background: "linear-gradient(135deg,#f97316,#ea580c)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "calc(16px * var(--font-scale))", fontWeight: "bold", color: "#fff",
-          }}>H</div>
-          <div>
-            <div style={{ color: "var(--text-main)", fontWeight: 700, fontSize: "calc(14px * var(--font-scale))", lineHeight: 1.2 }}>{platformName}</div>
-            <div style={{ color: "var(--text-muted)", fontSize: "calc(10px * var(--font-scale))" }}>Admin Dashboard</div>
-          </div>
-        </div>
-      </div>
-
-      <nav style={{ flex: 1, padding: "12px 0", overflowY: "auto" }}>
-        {NAV_ITEMS.map(item => {
-          const isActive = active === item.id;
-          return (
-            <button key={item.id} suppressHydrationWarning={true} 
-              onClick={() => {
-                if (item.id === "revenue") {
-                  router.push("/admin/revenue");
-                } else {
-                  router.push("/admin/dashboard2");
-                }
-              }} 
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                width: "100%", padding: "10px 16px",
-                background: isActive ? "linear-gradient(90deg,rgba(249,115,22,0.18),transparent)" : "none",
-                border: "none", borderLeft: isActive ? "3px solid #f97316" : "3px solid transparent",
-                color: isActive ? "#fb923c" : "var(--text-muted)",
-                fontSize: "calc(13px * var(--font-scale))", fontWeight: isActive ? 600 : 400,
-                cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-              }}
-            >
-              <span style={{ fontSize: "calc(15px * var(--font-scale))" }}>{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border-color)" }}>
-        <button suppressHydrationWarning={true} style={{
-          display: "flex", alignItems: "center", gap: 10, width: "100%",
-          padding: 10, background: "none", border: "none",
-          color: "var(--text-muted)", fontSize: "calc(13px * var(--font-scale))", cursor: "pointer",
-        }}>
-          <span>🎧</span><span>Support</span>
-        </button>
-      </div>
-    </aside>
-  );
-}
+import { AdminPageLayout } from "../admin-shared";
 
 export default function AdminRevenuePage() {
-  const router = useRouter();
-
   const [activeTab, setActiveTab] = useState('overview'); 
   const [billings, setBillings] = useState([]);
   const [completedBookings, setCompletedBookings] = useState([]); 
@@ -113,29 +37,11 @@ export default function AdminRevenuePage() {
     return list;
   }, []);
 
+  // ✅ Theme/font-scale/platformName is now handled entirely by
+  // AdminPageLayout's shared useAdminSettings hook (the "helpnow_*"
+  // localStorage keys used everywhere else), so this page no longer
+  // needs its own separate theme-loading logic.
   useEffect(() => {
-    const root = document.documentElement;
-    const currentTheme = localStorage.getItem("admin_theme") || "dark";
-    if (currentTheme === "dark") {
-      root.style.setProperty("--bg-main", "#0b0d1a");
-      root.style.setProperty("--bg-sidebar", "#0f1117");
-      root.style.setProperty("--bg-card", "#13162b");
-      root.style.setProperty("--border-color", "#1e2130");
-      root.style.setProperty("--text-main", "#ffffff");
-      root.style.setProperty("--text-muted", "#9ca3af");
-      root.style.setProperty("--bg-input", "#1a1d2e");
-      root.style.setProperty("--border-input", "#2d3148");
-    } else {
-      root.style.setProperty("--bg-main", "#f3f4f6");
-      root.style.setProperty("--bg-sidebar", "#ffffff");
-      root.style.setProperty("--bg-card", "#ffffff");
-      root.style.setProperty("--border-color", "#e5e7eb");
-      root.style.setProperty("--text-main", "#111827");
-      root.style.setProperty("--text-muted", "#4b5563");
-      root.style.setProperty("--bg-input", "#f9fafb");
-      root.style.setProperty("--border-input", "#d1d5db");
-    }
-
     setSelectedMonth(selectOptions[0]);
     fetchAdminData();
   }, []);
@@ -351,39 +257,104 @@ export default function AdminRevenuePage() {
     return list;
   }, [billings]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 size={36} className="animate-spin text-blue-900 mx-auto mb-2" />
-          <p className="text-gray-500 text-sm">Syncing admin data...</p>
-        </div>
-      </div>
-    );
-  }
+  // ✅ NEW — day-by-day breakdown of HelpNow SL's own platform earnings
+  // (commission) for the selected month. This is what powers the
+  // Monthly Report tab: one row/bar per calendar day, updating live as
+  // bookings complete, with a running cumulative total across the month.
+  const dailyBreakdown = useMemo(() => {
+    if (!selectedMonth) return [];
+
+    const [monthName, yearStr] = selectedMonth.split(' ');
+    const year = parseInt(yearStr, 10);
+    const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    const days = Array.from({ length: daysInMonth }, (_, i) => ({
+      day: i + 1,
+      jobs: 0,
+      gross: 0,
+      commission: 0,
+    }));
+
+    completedBookings.forEach(b => {
+      if (!b.updatedAt) return;
+      const d = new Date(b.updatedAt);
+      if (d.getMonth() !== monthIndex || d.getFullYear() !== year) return;
+
+      const dayIdx = d.getDate() - 1;
+      const totalValue = (b.dailyRate || 0) * (b.estimatedDays || 1);
+      const rate = b.commissionRate || settings.defaultCommissionRate || 10;
+      const commission = b.commissionAmount || (totalValue * rate / 100);
+
+      days[dayIdx].jobs += 1;
+      days[dayIdx].gross += totalValue;
+      days[dayIdx].commission += commission;
+    });
+
+    let running = 0;
+    return days.map(d => {
+      running += d.commission;
+      return { ...d, cumulative: running };
+    });
+  }, [completedBookings, selectedMonth, settings.defaultCommissionRate]);
+
+  // ✅ NEW — top-line summary numbers for the Monthly Report tab
+  const monthSummary = useMemo(() => {
+    const totalCommission = dailyBreakdown.reduce((s, d) => s + d.commission, 0);
+    const totalJobs = dailyBreakdown.reduce((s, d) => s + d.jobs, 0);
+    const totalGross = dailyBreakdown.reduce((s, d) => s + d.gross, 0);
+    const activeDays = dailyBreakdown.filter(d => d.jobs > 0).length;
+
+    const today = new Date();
+    const isCurrentMonth = today.toLocaleString('en-US', { month: 'long', year: 'numeric' }) === selectedMonth;
+    const daysElapsed = isCurrentMonth ? today.getDate() : dailyBreakdown.length;
+    const avgDaily = daysElapsed > 0 ? totalCommission / daysElapsed : 0;
+
+    return {
+      totalCommission, totalJobs, totalGross, activeDays,
+      daysElapsed, totalDaysInMonth: dailyBreakdown.length,
+      avgDaily, isCurrentMonth,
+    };
+  }, [dailyBreakdown, selectedMonth]);
+
+  // ✅ NEW — SVG chart geometry for the daily commission bar chart +
+  // cumulative line overlay
+  const reportChart = useMemo(() => {
+    const W = 900, H = 220, padL = 40, padB = 30, padT = 16;
+    const n = Math.max(dailyBreakdown.length, 1);
+    const barGap = 3;
+    const barW = Math.max((W - padL - 20) / n - barGap, 2);
+    const maxCommission = Math.max(...dailyBreakdown.map(d => d.commission), 1);
+    const maxCumulative = Math.max(...dailyBreakdown.map(d => d.cumulative), 1);
+
+    const bars = dailyBreakdown.map((d, i) => {
+      const x = padL + i * (barW + barGap);
+      const h = (d.commission / maxCommission) * (H - padT - padB);
+      return { x, y: H - padB - h, w: barW, h, day: d.day, commission: d.commission };
+    });
+
+    const linePoints = dailyBreakdown.map((d, i) => {
+      const x = padL + i * (barW + barGap) + barW / 2;
+      const y = H - padB - (d.cumulative / maxCumulative) * (H - padT - padB);
+      return `${x},${y}`;
+    }).join(' ');
+
+    return { W, H, padL, padB, bars, linePoints };
+  }, [dailyBreakdown]);
 
   return (
-    <div style={{ background: "var(--bg-main)", minHeight: "100vh", fontFamily: "'Segoe UI',system-ui,sans-serif", color: "var(--text-main)", transition: "background 0.2s, color 0.15s" }}>
-      <Sidebar active="revenue" platformName={settings.platformName || "HelpNow SL"} router={router} />
+    <AdminPageLayout activeNav="revenue" refetch={fetchAdminData} loading={loading} error={null}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ color: "var(--text-main)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700, margin: 0 }}>
+          Revenue, Commission & Billings 💰
+        </h1>
+        <div style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--font-scale))", marginTop: 4 }}>
+          Track platform commission, verify partner payments, and manage billing settings.
+        </div>
+      </div>
 
-      <div style={{ marginLeft: 220, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        
-        {/* Header */}
-        <header style={{
-          height: 56, background: "var(--bg-sidebar)", borderBottom: "1px solid var(--border-color)",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 24px", position: "sticky", top: 0, zIndex: 50,
-        }}>
-          <div style={{ color: "var(--text-main)", fontWeight: 700, fontSize: "calc(14px * var(--font-scale))" }}>
-            Platform Revenue, Commission & Billings Panel
-          </div>
-          <button onClick={fetchAdminData} style={{ background: "var(--bg-main)", border: "1px solid var(--border-input)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", color: "var(--text-muted)", fontSize: "calc(11px * var(--font-scale))", fontWeight: "bold" }}>
-            🔄 Refresh
-          </button>
-        </header>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-        <main style={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
-          
           {successMsg && (
             <div style={{ background: "rgba(16,185,129,0.15)", border: "1px solid #10b981", color: "#10b981", padding: "12px 16px", borderRadius: 12, fontSize: 13, fontWeight: "bold" }}>
               ✓ {successMsg}
@@ -394,6 +365,7 @@ export default function AdminRevenuePage() {
           <div style={{ display: "flex", gap: 10, borderBottom: "1px solid var(--border-color)", paddingBottom: 12 }}>
             {[
               { id: 'overview', label: 'Overview Log', icon: '💰' },
+              { id: 'monthly_report', label: 'Monthly Report', icon: '📊' },
               { id: 'billing_verification', label: `Pending Slip Verifications (${pendingApprovalsList.length})`, icon: '📄' },
               { id: 'settings', label: 'Platform Fee & Bank Settings', icon: '⚙️' }
             ].map(tab => (
@@ -615,6 +587,162 @@ export default function AdminRevenuePage() {
             </div>
           )}
 
+          {/* ── TAB: MONTHLY REPORT ── */}
+          {activeTab === 'monthly_report' && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <div>
+                  <h4 style={{ color: "var(--text-main)", fontSize: 14, fontWeight: 700, margin: 0 }}>
+                    HelpNow SL Platform Earnings — {selectedMonth}
+                  </h4>
+                  <p style={{ color: "var(--text-muted)", fontSize: 10, margin: "2px 0 0" }}>
+                    {monthSummary.isCurrentMonth
+                      ? `Live — updating as jobs complete (Day ${monthSummary.daysElapsed} of ${monthSummary.totalDaysInMonth})`
+                      : `Final report for ${selectedMonth} (${monthSummary.totalDaysInMonth} days)`}
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: "bold" }}>Month:</span>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    style={{
+                      background: "var(--bg-main)", border: "1px solid var(--border-input)", borderRadius: 8,
+                      padding: "6px 12px", color: "var(--text-main)", outline: "none", fontSize: 11,
+                      cursor: "pointer", fontWeight: "bold"
+                    }}
+                  >
+                    {selectOptions.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => window.print()}
+                    style={{
+                      background: "#f97316", border: "none", color: "#fff", borderRadius: 8,
+                      padding: "6px 14px", fontSize: 11, fontWeight: "bold", cursor: "pointer"
+                    }}
+                  >
+                    🖨️ Print / Save PDF
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "16px 18px" }}>
+                  <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>Platform Earnings This Month</span>
+                  <h4 style={{ color: "#f97316", fontSize: 20, fontWeight: 900, margin: "4px 0 0" }}>LKR {Math.round(monthSummary.totalCommission).toLocaleString()}</h4>
+                </div>
+                <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "16px 18px" }}>
+                  <span style={{ fontSize: 9, color: "#10b981", textTransform: "uppercase", fontWeight: "bold" }}>Jobs Completed</span>
+                  <h4 style={{ color: "#10b981", fontSize: 20, fontWeight: 900, margin: "4px 0 0" }}>{monthSummary.totalJobs}</h4>
+                </div>
+                <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "16px 18px" }}>
+                  <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>Total Gross Job Value</span>
+                  <h4 style={{ color: "var(--text-main)", fontSize: 20, fontWeight: 900, margin: "4px 0 0" }}>LKR {Math.round(monthSummary.totalGross).toLocaleString()}</h4>
+                </div>
+                <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "16px 18px" }}>
+                  <span style={{ fontSize: 9, color: "#fbbf24", textTransform: "uppercase", fontWeight: "bold" }}>Avg. Daily Earning</span>
+                  <h4 style={{ color: "#fbbf24", fontSize: 20, fontWeight: 900, margin: "4px 0 0" }}>LKR {Math.round(monthSummary.avgDaily).toLocaleString()}</h4>
+                </div>
+              </div>
+
+              {/* Daily earnings chart */}
+              <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <h4 style={{ color: "var(--text-main)", fontSize: 13, fontWeight: 700, margin: 0 }}>Daily Earnings & Running Total</h4>
+                  <div style={{ display: "flex", gap: 14, fontSize: 9, color: "var(--text-muted)" }}>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#f97316", borderRadius: 2, marginRight: 4 }}></span>Daily commission</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#10b981", borderRadius: 2, marginRight: 4 }}></span>Running total</span>
+                  </div>
+                </div>
+
+                {dailyBreakdown.length > 0 ? (
+                  <svg viewBox={`0 0 ${reportChart.W} ${reportChart.H}`} style={{ width: "100%", height: 220 }}>
+                    {reportChart.bars.map((bar, i) => (
+                      <rect
+                        key={i}
+                        x={bar.x} y={bar.y} width={bar.w} height={Math.max(bar.h, 0)}
+                        fill="#f97316" opacity={0.75} rx={1}
+                      >
+                        <title>Day {bar.day}: LKR {Math.round(bar.commission).toLocaleString()}</title>
+                      </rect>
+                    ))}
+                    <polyline
+                      points={reportChart.linePoints}
+                      fill="none" stroke="#10b981" strokeWidth={2}
+                    />
+                    {/* Day labels every 5 days */}
+                    {reportChart.bars.filter((_, i) => i % 5 === 0 || i === reportChart.bars.length - 1).map((bar, idx) => (
+                      <text
+                        key={idx}
+                        x={bar.x + bar.w / 2} y={reportChart.H - 10}
+                        fontSize={9} fill="var(--text-muted)" textAnchor="middle"
+                      >
+                        {bar.day}
+                      </text>
+                    ))}
+                  </svg>
+                ) : (
+                  <div style={{ color: "var(--text-muted)", fontSize: 11, textAlign: "center", padding: "30px 0" }}>
+                    No completed jobs recorded yet for {selectedMonth}.
+                  </div>
+                )}
+              </div>
+
+              {/* Day-by-day table */}
+              <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: 18, overflowX: "auto" }}>
+                <h4 style={{ color: "var(--text-main)", fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>
+                  Day-by-Day Breakdown — {selectedMonth}
+                </h4>
+                <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 11 }}>
+                    <thead style={{ position: "sticky", top: 0, background: "var(--bg-card)" }}>
+                      <tr style={{ borderBottom: "1px solid var(--border-color)", color: "var(--text-muted)" }}>
+                        <th style={{ paddingBottom: 10 }}>Day</th>
+                        <th style={{ paddingBottom: 10, textAlign: "center" }}>Jobs Completed</th>
+                        <th style={{ paddingBottom: 10 }}>Gross Job Value</th>
+                        <th style={{ paddingBottom: 10 }}>Commission Earned</th>
+                        <th style={{ paddingBottom: 10, textAlign: "right" }}>Running Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailyBreakdown.map(d => (
+                        <tr key={d.day} style={{
+                          borderBottom: "1px solid var(--bg-main)",
+                          color: d.jobs > 0 ? "var(--text-main)" : "var(--text-muted)",
+                        }}>
+                          <td style={{ padding: "8px 0", fontWeight: 600 }}>{selectedMonth.split(' ')[0]} {d.day}</td>
+                          <td style={{ padding: "8px 0", textAlign: "center" }}>{d.jobs || "—"}</td>
+                          <td style={{ padding: "8px 0" }}>{d.gross > 0 ? `LKR ${Math.round(d.gross).toLocaleString()}` : "—"}</td>
+                          <td style={{ padding: "8px 0", color: d.commission > 0 ? "#f97316" : "var(--text-muted)", fontWeight: "bold" }}>
+                            {d.commission > 0 ? `LKR ${Math.round(d.commission).toLocaleString()}` : "—"}
+                          </td>
+                          <td style={{ padding: "8px 0", textAlign: "right", color: "#10b981", fontWeight: "bold" }}>
+                            LKR {Math.round(d.cumulative).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: "2px solid var(--border-color)" }}>
+                        <td style={{ padding: "10px 0", fontWeight: 900, color: "var(--text-main)" }}>Total</td>
+                        <td style={{ padding: "10px 0", textAlign: "center", fontWeight: 900, color: "var(--text-main)" }}>{monthSummary.totalJobs}</td>
+                        <td style={{ padding: "10px 0", fontWeight: 900, color: "var(--text-main)" }}>LKR {Math.round(monthSummary.totalGross).toLocaleString()}</td>
+                        <td style={{ padding: "10px 0", fontWeight: 900, color: "#f97316" }}>LKR {Math.round(monthSummary.totalCommission).toLocaleString()}</td>
+                        <td style={{ padding: "10px 0", textAlign: "right", fontWeight: 900, color: "#10b981" }}>LKR {Math.round(monthSummary.totalCommission).toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* ── TAB 2: PENDING APPROVALS ── */}
           {activeTab === 'billing_verification' && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -786,16 +914,7 @@ export default function AdminRevenuePage() {
             </form>
           )}
 
-        </main>
       </div>
-
-      <style>{`
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: var(--bg-main); }
-        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-        button:hover { opacity: 0.85; }
-      `}</style>
-    </div>
+    </AdminPageLayout>
   );
 }

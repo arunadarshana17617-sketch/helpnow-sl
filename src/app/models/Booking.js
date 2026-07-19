@@ -14,28 +14,57 @@ const BookingSchema = new mongoose.Schema({
   customerDistrict: String,
   customerCity: String,
 
-  // ✅ Customer's exact GPS location captured at booking time (optional —
-  // customer may have denied location permission, in which case this stays null)
+  // ✅ Customer's exact GPS location captured at booking time (fully optional)
   location: {
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point',
     },
     coordinates: {
       type: [Number], // [longitude, latitude] — GeoJSON order
-      default: undefined,
     },
   },
 
   // Service Provider
+  // ✅ required: false wenna wenne broadcast bookings walata — those are created
+  // BEFORE any provider is assigned. Direct bookings (existing flow) still always
+  // set this at creation time, it's just no longer *enforced* at the schema level.
   provider: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ServiceProvider',
-    required: true,
+    default: null,
   },
   providerName: String,
   providerEmail: String,
+
+  // ─────────────────────────────────────────────
+  // 📡 Broadcast flow (category + nearby providers)
+  // ─────────────────────────────────────────────
+  // 'direct'    → customer picked one specific provider (existing flow)
+  // 'broadcast' → customer picked a category, request went out to every
+  //               matching provider nearby, first to claim gets it
+  bookingType: {
+    type: String,
+    enum: ['direct', 'broadcast'],
+    default: 'direct',
+  },
+  // Providers who were notified about this broadcast job (used to email the
+  // "losers" once someone else claims it, and to filter each provider's job feed)
+  notifiedProviders: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ServiceProvider',
+  }],
+  claimedAt: {
+    type: Date,
+    default: null,
+  },
+
+  // 🔔 Set once the "job is tomorrow" reminder email has been sent to the
+  // provider, so the daily cron never sends it twice for the same booking.
+  reminderSentAt: {
+    type: Date,
+    default: null,
+  },
 
   // Service details
   serviceCategory: String,
@@ -67,7 +96,7 @@ const BookingSchema = new mongoose.Schema({
   customerNotes: String,
   providerNotes: String,
 
-  // ⭐ Rating — customer දෙන rating (completed වුනාට පස්සේ විතරයි)
+  // ⭐ Rating — customer දෙන rating
   rating: {
     type: Number,
     min: 1,
@@ -79,25 +108,23 @@ const BookingSchema = new mongoose.Schema({
     default: null,
   },
 
-  // ─────────────────────────────────────────────
-  // 💰 Commission snapshot — booking eka 'completed' karana welawe calculate karala save karanawa
-  // ─────────────────────────────────────────────
+  // 💰 Commission snapshot
   commissionRate: {
     type: Number,
-    default: null, // % applied for THIS booking (snapshot at completion time)
+    default: null,
   },
   commissionAmount: {
     type: Number,
-    default: null, // Rs. amount platform eka kapagatta
+    default: null,
   },
   providerEarning: {
     type: Number,
-    default: null, // total - commissionAmount
+    default: null,
   },
   billingRecord: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Billing',
-    default: null, // me booking eka ekathu unu monthly Billing document eka
+    default: null,
   },
 
 }, {
@@ -105,6 +132,7 @@ const BookingSchema = new mongoose.Schema({
   collection: 'bookings'
 });
 
+// Create 2dsphere index to handle optional location queries
 BookingSchema.index({ location: '2dsphere' });
 
 const Booking = mongoose.models.Booking || mongoose.model('Booking', BookingSchema);

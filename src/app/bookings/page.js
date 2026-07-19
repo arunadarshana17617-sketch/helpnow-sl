@@ -5,15 +5,15 @@ import { useRouter } from 'next/navigation';
 import {
   CheckCircle2, XCircle, Clock, Loader2, CalendarDays,
   MapPin, Phone, Briefcase, ChevronDown, ChevronUp,
-  AlertCircle, PlayCircle, BadgeCheck, User, RefreshCw, Star
+  AlertCircle, PlayCircle, BadgeCheck, User, RefreshCw, Star, Trash2
 } from 'lucide-react';
 import RatingModal from '@/app/Components/RatingModal';
 
 const STATUS_CONFIG = {
-  pending:     { label: 'Pending',     color: 'bg-yellow-100 text-yellow-800 border-yellow-200', dot: 'bg-yellow-400', msg: 'Provider reply එනකල් ඉන්න' },
-  confirmed:   { label: 'Confirmed',   color: 'bg-blue-100 text-blue-800 border-blue-200',       dot: 'bg-blue-400',   msg: 'Provider accept කළා!' },
-  in_progress: { label: 'In Progress', color: 'bg-purple-100 text-purple-800 border-purple-200', dot: 'bg-purple-400', msg: 'වැඩ සිදුවෙනවා' },
-  completed:   { label: 'Completed',   color: 'bg-green-100 text-green-800 border-green-200',    dot: 'bg-green-400',  msg: 'වැඩ ඉවරයි!' },
+  pending:     { label: 'Pending',     color: 'bg-yellow-100 text-yellow-800 border-yellow-200', dot: 'bg-yellow-400', msg: 'Waiting for provider reply' },
+  confirmed:   { label: 'Confirmed',   color: 'bg-blue-100 text-blue-800 border-blue-200',       dot: 'bg-blue-400',   msg: 'Provider accepted!' },
+  in_progress: { label: 'In Progress', color: 'bg-purple-100 text-purple-800 border-purple-200', dot: 'bg-purple-400', msg: 'Work is in progress' },
+  completed:   { label: 'Completed',   color: 'bg-green-100 text-green-800 border-green-200',    dot: 'bg-green-400',  msg: 'Work is done!' },
   cancelled:   { label: 'Cancelled',   color: 'bg-red-100 text-red-800 border-red-200',          dot: 'bg-red-400',    msg: '' },
 };
 
@@ -30,15 +30,25 @@ function StarDisplay({ rating }) {
   );
 }
 
-function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
+function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const [acting, setActing]     = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const cfg = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
 
   const handleUpdate = async (newStatus) => {
     setActing(true);
     await onStatusUpdate(booking._id, newStatus);
     setActing(false);
+  };
+
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this booking? This cannot be undone.')) return;
+    setDeleting(true);
+    await onDelete(booking._id);
+    // No need to setDeleting(false) on success — card will unmount when parent removes it.
+    setDeleting(false);
   };
 
   const displayName = isPartner ? booking.customerName : booking.providerName;
@@ -69,7 +79,7 @@ function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
             {/* Rate pending badge */}
             {canRate && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700 font-medium animate-pulse">
-                Rate කරන්න ⭐
+                Give a rating ⭐
               </span>
             )}
           </div>
@@ -130,7 +140,7 @@ function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
 
           <div className="bg-blue-50 rounded-xl p-3">
             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
-              {isPartner ? 'Job Description' : 'ඔයා ඉල්ලූ වැඩේ'}
+              {isPartner ? 'Job Description' : 'The work you requested'}
             </p>
             <p className="text-xs text-gray-700">{booking.jobDescription}</p>
           </div>
@@ -143,7 +153,7 @@ function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
           )}
           {booking.providerNotes && (
             <div className="bg-green-50 rounded-xl p-3">
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1">Provider ගෙන් Message</p>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1">Provider  Message</p>
               <p className="text-xs text-gray-700">{booking.providerNotes}</p>
             </div>
           )}
@@ -155,7 +165,7 @@ function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-yellow-50 border border-yellow-200 text-yellow-700 font-semibold text-sm hover:bg-yellow-100 transition"
             >
               <Star size={16} className="fill-yellow-400 text-yellow-400" />
-              Provider ට Rating දෙන්න
+              Rate the Provider
             </button>
           )}
 
@@ -163,7 +173,7 @@ function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
           {hasRated && (
             <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-50 border border-green-100">
               <StarDisplay rating={booking.rating} />
-              <span className="text-xs text-green-700 font-medium">ඔයා දුන් rating</span>
+              <span className="text-xs text-green-700 font-medium">Your rating</span>
             </div>
           )}
 
@@ -195,8 +205,14 @@ function BookingCard({ booking, isPartner, onStatusUpdate, onRateClick }) {
                 </button>
               )}
               {(booking.status === 'completed' || booking.status === 'cancelled') && (
-                <p className="text-xs text-gray-400 self-center">No further actions</p>
+                <p className="text-xs text-gray-400 self-center mr-auto">No further actions</p>
               )}
+
+              {/* ── Delete (Received bookings only) ── */}
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex items-center gap-1.5 bg-white border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 px-4 py-2 rounded-xl text-xs font-semibold transition ml-auto">
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete
+              </button>
             </div>
           )}
 
@@ -247,8 +263,8 @@ export default function BookingsDashboard() {
       if (sentData.success) {
         setSent(sentData.bookings);
 
-        // ── Auto-popup: load වෙද්දිම unrated completed booking
-        //    එකක් තිබේ නම් modal auto-open ──
+        // ── Auto-popup: if there is an unrated completed booking
+        //    when the list loads, open the rating modal automatically ──
         if (userRole !== 'partner') {
           const firstUnrated = sentData.bookings.find(
             b => b.status === 'completed' && !b.rating
@@ -264,7 +280,7 @@ export default function BookingsDashboard() {
 
       setActiveTab(userRole === 'partner' ? 'received' : 'sent');
     } catch {
-      setError('Load karanna bari una. Refresh karanna.');
+      setError('Could not load bookings. Please refresh.');
     } finally {
       setLoading(false);
     }
@@ -292,6 +308,21 @@ export default function BookingsDashboard() {
   // Rating complete — local state update
   const handleRated = useCallback((bookingId, star) => {
     setSent(prev => prev.map(b => b._id === bookingId ? { ...b, rating: star } : b));
+  }, []);
+
+  // Delete a received booking (provider side only)
+  const handleDelete = useCallback(async (bookingId) => {
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setReceived(prev => prev.filter(b => b._id !== bookingId));
+      } else {
+        alert(data.error || 'Failed to delete booking');
+      }
+    } catch {
+      alert('Server error — could not delete booking');
+    }
   }, []);
 
   const activeBookings = activeTab === 'received' ? receivedBookings : sentBookings;
@@ -416,9 +447,9 @@ export default function BookingsDashboard() {
             <p className="text-gray-500 font-medium text-sm">No bookings found</p>
             <p className="text-xs text-gray-400 mt-1">
               {filter === 'all' && activeTab === 'sent'
-                ? 'Book karala naha — services page gihin book karanna!'
+                ? "You haven't booked anything yet — go to the services page to book!"
                 : filter === 'all'
-                ? 'Customers bookings daapu giya pennayi'
+                ? 'Bookings from customers will show up here'
                 : `No ${STATUS_CONFIG[filter]?.label} bookings`}
             </p>
             {filter === 'all' && activeTab === 'sent' && (
@@ -440,6 +471,7 @@ export default function BookingsDashboard() {
               isPartner={activeTab === 'received'}
               onStatusUpdate={handleStatusUpdate}
               onRateClick={setRatingBooking}
+              onDelete={activeTab === 'received' ? handleDelete : undefined}
             />
           ))}
         </div>

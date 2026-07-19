@@ -17,6 +17,11 @@ function ProfessionalsView({ providers, bookings, onRefetch }) {
   const [providerModalState, setProviderModalState] = useState("normal"); 
   const [activeLightboxImg, setActiveLightboxImg] = useState(null);
 
+  // ✅ NEW — ids we've already told the server are "seen", tracked locally
+  // so the highlight disappears instantly on click instead of waiting for
+  // the next data refetch.
+  const [justSeenIds, setJustSeenIds] = useState(new Set());
+
   const verifiedCount = useMemo(() => {
     return providers.filter(p => p.services?.some(s => s.verificationStatus === "verified")).length;
   }, [providers]);
@@ -123,6 +128,26 @@ function ProfessionalsView({ providers, bookings, onRefetch }) {
     return months;
   }, [pBookings, selectedProvider]);
 
+  // ✅ NEW — called when admin opens a professional's profile. Marks it
+  // as seen on the server (so it stays cleared on refresh/other admins),
+  // hides the highlight immediately, and tells the sidebar to decrement
+  // its badge count right away instead of waiting for the next poll.
+  const handleViewProfile = async (p) => {
+    setSelectedProvider(p);
+    setProviderModalState("normal");
+
+    if (p.isNewForAdmin && !justSeenIds.has(p._id)) {
+      setJustSeenIds(prev => new Set(prev).add(p._id));
+      window.dispatchEvent(new CustomEvent("admin:professional-seen"));
+
+      try {
+        await fetch(`/api/admin/providers/${p._id}/mark-seen`, { method: "PATCH" });
+      } catch (err) {
+        console.error("Failed to mark professional as seen:", err);
+      }
+    }
+  };
+
   const handleDeleteProvider = async (id, name) => {
     const isConfirmed = window.confirm(`Are you sure you want to permanently remove professional ${name} and all their registered services from the site?`);
     if (!isConfirmed) return;
@@ -223,6 +248,10 @@ function ProfessionalsView({ providers, bookings, onRefetch }) {
                   const hasPending = p.services?.some(s => s.verificationStatus === "pending");
                   const hasRejected = p.services?.every(s => s.verificationStatus === "rejected");
 
+                  // ✅ NEW — highlight the row while it's new AND hasn't
+                  // been opened yet in this session or a previous one.
+                  const isHighlighted = p.isNewForAdmin && !justSeenIds.has(p._id);
+
                   let overallStatus = "pending";
                   let statusColor = "#fbbf24";
                   let statusBg = "rgba(251,191,36,0.15)";
@@ -238,7 +267,13 @@ function ProfessionalsView({ providers, bookings, onRefetch }) {
                   }
 
                   return (
-                    <tr key={p._id || idx} style={{ borderBottom: "1px solid var(--bg-main)", color: "var(--text-main)" }}>
+                    <tr key={p._id || idx} style={{
+                      borderBottom: "1px solid var(--bg-main)",
+                      color: "var(--text-main)",
+                      background: isHighlighted ? "rgba(249,115,22,0.08)" : "transparent",
+                      borderLeft: isHighlighted ? "3px solid #f97316" : "3px solid transparent",
+                      transition: "background 0.3s, border-color 0.3s",
+                    }}>
                       <td style={{ padding: "12px 0" }}>
                         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                           <div style={{
@@ -254,7 +289,15 @@ function ProfessionalsView({ providers, bookings, onRefetch }) {
                             )}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600 }}>{p.fullName || "Unknown"}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontWeight: 600 }}>{p.fullName || "Unknown"}</span>
+                              {isHighlighted && (
+                                <span style={{
+                                  fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+                                  background: "#f97316", color: "#fff", letterSpacing: 0.4,
+                                }}>NEW</span>
+                              )}
+                            </div>
                             <div style={{ color: "var(--text-muted)", fontSize: 9 }}>{p.email}</div>
                           </div>
                         </div>
@@ -299,7 +342,7 @@ function ProfessionalsView({ providers, bookings, onRefetch }) {
                           }}>
                             {overallStatus}
                           </span>
-                          <button suppressHydrationWarning={true} onClick={() => { setSelectedProvider(p); setProviderModalState("normal"); }} style={{ background: "var(--bg-main)", border: "1px solid var(--border-input)", color: "#fb923c", borderRadius: 6, padding: "5px 12px", fontSize: 9, cursor: "pointer", fontWeight: 600 }}>
+                          <button suppressHydrationWarning={true} onClick={() => handleViewProfile(p)} style={{ background: "var(--bg-main)", border: "1px solid var(--border-input)", color: "#fb923c", borderRadius: 6, padding: "5px 12px", fontSize: 9, cursor: "pointer", fontWeight: 600 }}>
                             View Profile
                           </button>
                           <button suppressHydrationWarning={true} onClick={() => handleDeleteProvider(p._id, p.fullName)} style={{ background: "#7f1d1d", border: "1px solid #dc2626", color: "#f87171", borderRadius: 6, padding: "5px 12px", fontSize: 9, cursor: "pointer", fontWeight: 600 }}>
