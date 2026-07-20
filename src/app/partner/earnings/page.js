@@ -63,8 +63,8 @@ function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMark
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
-          <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed top-16 right-3 w-[calc(100vw-1.5rem)] max-w-80 sm:right-6 bg-white border border-gray-100 rounded-2xl shadow-xl z-[100] overflow-hidden flex flex-col">
+          <div className="p-3 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h4 className="font-extrabold text-xs text-slate-800">{language === 'si' ? 'දැනුම්දීම්' : 'Notifications'}</h4>
             {unreadCount > 0 && (
               <button onClick={onMarkAllRead} className="text-[10px] text-orange-500 hover:underline font-bold">
@@ -73,7 +73,10 @@ function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMark
             )}
           </div>
 
-          <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+          <div
+            className="overflow-y-auto divide-y divide-gray-50 overscroll-contain"
+            style={{ WebkitOverflowScrolling: 'touch', maxHeight: 'min(70vh, 420px)' }}
+          >
             {notifications.length > 0 ? (
               notifications.map((notif) => (
                 <div

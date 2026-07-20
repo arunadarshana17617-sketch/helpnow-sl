@@ -64,8 +64,8 @@ function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMark
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
-          <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed top-16 right-3 w-[calc(100vw-1.5rem)] max-w-80 sm:right-6 bg-white border border-gray-100 rounded-2xl shadow-xl z-[100] overflow-hidden flex flex-col">
+          <div className="p-3 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h4 className="font-extrabold text-xs text-slate-800">{language === 'si' ? 'දැනුම්දීම්' : 'Notifications'}</h4>
             {unreadCount > 0 && (
               <button onClick={onMarkAllRead} className="text-[10px] text-orange-500 hover:underline font-bold">
@@ -74,7 +74,10 @@ function NotificationDropdown({ notifications, unreadCount, onMarkAsRead, onMark
             )}
           </div>
 
-          <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+          <div
+            className="overflow-y-auto divide-y divide-gray-50 overscroll-contain"
+            style={{ WebkitOverflowScrolling: 'touch', maxHeight: 'min(70vh, 420px)' }}
+          >
             {notifications.length > 0 ? (
               notifications.map((notif) => (
                 <div
@@ -289,6 +292,13 @@ export default function PartnerDashboard() {
   const [revealDeleteId, setRevealDeleteId] = useState(null);
   const [bookingToDelete, setBookingToDelete] = useState(null);
   const [deletingBooking, setDeletingBooking] = useState(false);
+
+  // 🆕 "Accept This Job Now" email link flow — ?jobId=<broadcastBookingId>
+  const [claimJob, setClaimJob] = useState(null);       // preview of the job being offered
+  const [claimJobId, setClaimJobId] = useState(null);   // id from the URL, while loading
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimError, setClaimError] = useState('');
+  const [claiming, setClaiming] = useState(false);
   const longPressTimer = useRef(null);
 
   const handleCardTouchStart = (bookingId) => {
@@ -364,6 +374,69 @@ export default function PartnerDashboard() {
       }
     }
   }, [bookings]);
+
+  // 🆕 "Accept This Job Now" email link — read ?jobId= once the provider is
+  // logged in, and fetch a preview of that broadcast job (doesn't claim it yet).
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('jobId');
+    if (!jobId) return;
+
+    setClaimJobId(jobId);
+    setClaimLoading(true);
+    setClaimError('');
+
+    fetch(`/api/bookings/${jobId}/claim`)
+      .then(res => res.json().then(data => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (ok && data.success) {
+          setClaimJob(data.job);
+        } else {
+          setClaimError(data.error || 'This job is no longer available.');
+        }
+      })
+      .catch(() => setClaimError('Something went wrong loading this job.'))
+      .finally(() => setClaimLoading(false));
+  }, [status]);
+
+  const closeClaimModal = () => {
+    setClaimJob(null);
+    setClaimJobId(null);
+    setClaimError('');
+    // Clean the ?jobId= out of the URL so refreshing doesn't re-trigger it
+    const url = new URL(window.location.href);
+    url.searchParams.delete('jobId');
+    router.replace(url.pathname + url.search);
+  };
+
+  const acceptClaimJob = async () => {
+    if (!claimJobId) return;
+    setClaiming(true);
+    setClaimError('');
+    try {
+      const res = await fetch(`/api/bookings/${claimJobId}/claim`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        await fetchDashboardData();
+        setClaimJob(null);
+        setClaimJobId(null);
+        setActiveView('bookings');
+        setStatusFilter('confirmed');
+        const url = new URL(window.location.href);
+        url.searchParams.delete('jobId');
+        router.replace(url.pathname + url.search);
+      } else {
+        setClaimError(data.error || 'Sorry, this job has already been taken by another provider.');
+        setClaimJob(null); // job's gone — nothing left to show, just the error
+      }
+    } catch (err) {
+      console.error('Claim job error:', err);
+      setClaimError('Something went wrong while accepting this job.');
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -1908,6 +1981,86 @@ export default function PartnerDashboard() {
               </Link>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ⚡ Broadcast Job Claim Modal — shown when landing here via the "Accept This Job Now" email link */}
+      {(claimJobId) && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4"
+          onClick={() => !claiming && closeClaimModal()}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {claimLoading ? (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <Loader2 size={26} className="animate-spin text-orange-500" />
+                <p className="text-xs text-slate-500 font-semibold">Loading job details...</p>
+              </div>
+            ) : claimError ? (
+              <div className="text-center space-y-4 py-4">
+                <XCircle size={40} className="text-red-400 mx-auto" />
+                <p className="text-sm font-bold text-slate-800">{claimError}</p>
+                <button
+                  onClick={closeClaimModal}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                >
+                  Close
+                </button>
+              </div>
+            ) : claimJob ? (
+              <>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="text-orange-500" size={18} />
+                    <h3 className="font-bold text-gray-900 text-sm">New Job Offer</h3>
+                  </div>
+                  <button onClick={closeClaimModal} disabled={claiming} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 space-y-1.5 text-xs text-slate-700">
+                  <p className="font-extrabold text-slate-800 text-sm">{claimJob.serviceCategory}</p>
+                  <p className="flex items-center gap-1.5 text-slate-500">
+                    <MapPin size={12} /> {claimJob.customerCity}, {claimJob.customerDistrict}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-slate-500">
+                    <CalendarDays size={12} />
+                    {new Date(claimJob.preferredDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {' · '}{claimJob.estimatedDays} day(s)
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl">
+                  <p className="text-[9px] text-gray-400 uppercase font-extrabold mb-1">Job Description</p>
+                  <p className="text-xs text-slate-700">{claimJob.jobDescription || 'No detailed instructions provided.'}</p>
+                </div>
+
+                <p className="text-[10px] text-amber-600 text-center font-semibold">⚡ First to accept gets this job — act fast!</p>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={closeClaimModal}
+                    disabled={claiming}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl transition text-sm disabled:opacity-60"
+                  >
+                    Not Now
+                  </button>
+                  <button
+                    onClick={acceptClaimJob}
+                    disabled={claiming}
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {claiming ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
+                    {claiming ? 'Accepting...' : 'Accept This Job'}
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}

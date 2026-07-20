@@ -117,6 +117,7 @@ export async function POST(request) {
       await Promise.all(matches.map(async ({ provider: p, distanceKm }) => {
         try {
           const { subject, html } = newJobRequestBroadcastEmailToProvider({
+            bookingId: booking._id.toString(),
             providerName: p.fullName,
             serviceCategory,
             jobDescription,

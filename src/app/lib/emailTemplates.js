@@ -435,7 +435,7 @@ export function jobReminderEmailToProvider({ providerName, customerName, custome
 // 📡  Provider ට — Broadcast: nearby customer kenek category eka select karama
 //     (first-to-accept-gets-it — hama matching provider kenekutama yanawa)
 // ─────────────────────────────────────────────────────────
-export function newJobRequestBroadcastEmailToProvider({ providerName, serviceCategory, jobDescription, preferredDate, estimatedDays, customerCity, customerDistrict, distanceKm }) {
+export function newJobRequestBroadcastEmailToProvider({ bookingId, providerName, serviceCategory, jobDescription, preferredDate, estimatedDays, customerCity, customerDistrict, distanceKm }) {
   return {
     subject: `⚡ New ${serviceCategory} Job Nearby — First to Accept Gets It!`,
     html: baseLayout({
@@ -459,7 +459,7 @@ export function newJobRequestBroadcastEmailToProvider({ providerName, serviceCat
           <h3 style="margin:0 0 8px;color:#92400e;">📝 Job Description</h3>
           <p style="margin:0;color:#78350f;">${jobDescription}</p>
         </div>
-        ${ctaButton('⚡ Accept This Job Now', `${appUrl}/partner/dashboard`, '#ea580c')}
+        ${ctaButton('⚡ Accept This Job Now', `${appUrl}/partner/dashboard?jobId=${bookingId}`, '#ea580c')}
         <p style="color:#9ca3af;font-size:13px;text-align:center;">Act fast — this job goes to whoever accepts it first.</p>
       `
     })

@@ -36,3 +36,26 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// ✅ NEW — delete a single log (pass { id }) or every log (pass { deleteAll: true })
+export async function DELETE(request) {
+  try {
+    const { id, deleteAll } = await request.json().catch(() => ({}));
+    await connectDB();
+
+    if (deleteAll) {
+      await AdminLoginAttempt.deleteMany({});
+      return NextResponse.json({ success: true, deletedAll: true });
+    }
+
+    if (id) {
+      await AdminLoginAttempt.deleteOne({ _id: id });
+      return NextResponse.json({ success: true, deletedId: id });
+    }
+
+    return NextResponse.json({ error: 'Provide either id or deleteAll' }, { status: 400 });
+  } catch (error) {
+    console.error('Security logs DELETE error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

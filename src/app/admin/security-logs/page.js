@@ -18,6 +18,8 @@ export default function SecurityLogsPage() {
   const [logs, setLogs] = useState([]);
   const [suspiciousCount, setSuspiciousCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
+  const [clearingAll, setClearingAll] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -38,15 +40,71 @@ export default function SecurityLogsPage() {
     fetchLogs();
   }, [fetchLogs]);
 
+  // ✅ NEW — delete a single log row
+  const handleDeleteLog = async (id) => {
+    setDeletingId(id);
+    try {
+      const res = await fetch("/api/admin/security-logs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setLogs(prev => prev.filter(l => l._id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete log:", err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ✅ NEW — delete every log, with a confirmation prompt since it's irreversible
+  const handleClearAll = async () => {
+    if (!confirm(`Delete all ${logs.length} security log entries? This can't be undone.`)) return;
+    setClearingAll(true);
+    try {
+      const res = await fetch("/api/admin/security-logs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteAll: true }),
+      });
+      if (res.ok) {
+        setLogs([]);
+        setSuspiciousCount(0);
+      }
+    } catch (err) {
+      console.error("Failed to clear logs:", err);
+    } finally {
+      setClearingAll(false);
+    }
+  };
+
   return (
     <AdminPageLayout activeNav="security-logs" refetch={fetchLogs} loading={loading} error={null}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ color: "var(--text-main)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700, margin: 0 }}>
-          Admin Login Security Logs 🛡️
-        </h1>
-        <div style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--font-scale))", marginTop: 4 }}>
-          Every attempt to log into this admin panel — including wrong emails and wrong codes — with the IP address it came from.
+      <div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ color: "var(--text-main)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700, margin: 0 }}>
+            Admin Login Security Logs 🛡️
+          </h1>
+          <div style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--font-scale))", marginTop: 4 }}>
+            Every attempt to log into this admin panel — including wrong emails and wrong codes — with the IP address it came from.
+          </div>
         </div>
+        {logs.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            disabled={clearingAll}
+            style={{
+              background: "rgba(239,68,68,0.12)", border: "1px solid #ef4444", color: "#f87171",
+              borderRadius: 8, padding: "8px 14px", fontSize: 11, fontWeight: 700,
+              cursor: clearingAll ? "not-allowed" : "pointer", opacity: clearingAll ? 0.6 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {clearingAll ? "Clearing..." : "🗑️ Clear All Logs"}
+          </button>
+        )}
       </div>
 
       {suspiciousCount > 0 && (
@@ -75,6 +133,7 @@ export default function SecurityLogsPage() {
                 <th style={{ paddingBottom: 10 }}>Network</th>
                 <th style={{ paddingBottom: 10 }}>Device</th>
                 <th style={{ paddingBottom: 10 }}>Result</th>
+                <th style={{ paddingBottom: 10 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -113,6 +172,20 @@ export default function SecurityLogsPage() {
                     }}>
                       {REASON_LABELS[log.reason] || (log.success ? "Success" : "Failed")}
                     </span>
+                  </td>
+                  <td style={{ padding: "8px 0", textAlign: "right" }}>
+                    <button
+                      onClick={() => handleDeleteLog(log._id)}
+                      disabled={deletingId === log._id}
+                      title="Delete this log entry"
+                      style={{
+                        background: "none", border: "none", color: "var(--text-muted)",
+                        cursor: deletingId === log._id ? "not-allowed" : "pointer",
+                        fontSize: 13, opacity: deletingId === log._id ? 0.4 : 1,
+                      }}
+                    >
+                      {deletingId === log._id ? "…" : "🗑️"}
+                    </button>
                   </td>
                 </tr>
               ))}

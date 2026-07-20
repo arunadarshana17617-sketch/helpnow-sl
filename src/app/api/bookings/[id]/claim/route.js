@@ -7,6 +7,62 @@ import { sendEmail } from '@/app/lib/mailer';
 import { notifyProvider } from '@/app/lib/notify';
 import { bookingConfirmedEmailToCustomer, jobTakenEmailToProvider } from '@/app/lib/emailTemplates';
 
+// GET /api/bookings/:id/claim
+// Lets a notified provider preview an unclaimed broadcast job (e.g. when they
+// land on the dashboard from the "Accept This Job Now" email link) before
+// actually claiming it. Does NOT change any booking state.
+export async function GET(request, { params }) {
+  try {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Please login first' }, { status: 401 });
+    }
+
+    await connectDB();
+    const { id } = await params;
+
+    const provider = await ServiceProvider.findOne({ email: session.user.email });
+    if (!provider) {
+      return NextResponse.json({ error: 'Only service providers can view this job' }, { status: 403 });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    if (booking.bookingType !== 'broadcast') {
+      return NextResponse.json({ error: 'This booking is not open for claiming' }, { status: 400 });
+    }
+
+    const wasNotified = (booking.notifiedProviders || []).some(pid => pid.toString() === provider._id.toString());
+    if (!wasNotified) {
+      return NextResponse.json({ error: 'This job was not sent to you' }, { status: 403 });
+    }
+
+    if (booking.status !== 'pending' || booking.provider) {
+      return NextResponse.json({ error: 'Sorry, this job has already been taken by another provider.' }, { status: 409 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      job: {
+        _id: booking._id,
+        serviceCategory: booking.serviceCategory,
+        jobDescription: booking.jobDescription,
+        preferredDate: booking.preferredDate,
+        estimatedDays: booking.estimatedDays,
+        customerCity: booking.customerCity,
+        customerDistrict: booking.customerDistrict,
+      },
+    });
+
+  } catch (error) {
+    console.error('Booking preview error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // POST /api/bookings/:id/claim
 // A provider calls this to accept a broadcast job. Whoever's request lands
 // first in MongoDB wins — the findOneAndUpdate filter (status:'pending',
