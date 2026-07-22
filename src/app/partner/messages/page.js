@@ -1,8 +1,11 @@
+// Save this file as: src/app/partner/messages/page.js  (replaces the existing one)
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Send, Trash2, MoreVertical } from 'lucide-react';
+
+const POLL_INTERVAL_MS = 4000;
 
 function timeAgo(date) {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -40,6 +43,7 @@ export default function PartnerMessagesPage() {
   const [menuOpenFor, setMenuOpenFor] = useState(null);
 
   const threadEndRef = useRef(null);
+  const pollRef = useRef(null);
 
   const fetchMessages = async () => {
     try {
@@ -55,8 +59,12 @@ export default function PartnerMessagesPage() {
     }
   };
 
+  // Initial load + polling every few seconds so a customer's status reply
+  // shows up automatically, WhatsApp style, without a manual page refresh.
   useEffect(() => {
     fetchMessages();
+    pollRef.current = setInterval(fetchMessages, POLL_INTERVAL_MS);
+    return () => clearInterval(pollRef.current);
   }, []);
 
   useEffect(() => {
@@ -148,7 +156,7 @@ export default function PartnerMessagesPage() {
 
   return (
     <div className="h-screen w-full bg-white flex flex-col overflow-hidden font-sans">
-      
+
       {/* Top Labels (Hidden on mobile) */}
       <div className="hidden md:flex w-full bg-white py-3 border-b border-gray-200 shrink-0 shadow-sm z-10">
         <div className="w-1/2 text-center text-slate-700 text-lg font-bold">Conversation List</div>
@@ -177,24 +185,21 @@ export default function PartnerMessagesPage() {
 
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
             {loading ? (
-              <div className="p-8 text-center text-gray-400 text-sm">Loading...</div>
+              <div className="p-8 text-center text-slate-400 text-sm">Loading...</div>
             ) : conversations.length === 0 ? (
-              <div className="p-10 text-center text-gray-400 text-sm">No messages yet.</div>
+              <div className="p-8 text-center text-slate-400 text-sm">
+                Message ekක නැහැ තවම.
+              </div>
             ) : (
               conversations.map((conv) => {
                 const last = conv.messages[conv.messages.length - 1];
-                const isActive = conv.contactId === activeContactId;
                 return (
                   <div
                     key={conv.contactId}
-                    className={`p-4 flex items-start gap-4 relative cursor-pointer transition ${
-                      isActive ? 'bg-orange-50' : 'hover:bg-slate-50'
-                    }`}
+                    onClick={() => setActiveContactId(conv.contactId)}
+                    className="p-4 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition"
                   >
-                    <div
-                      onClick={() => setActiveContactId(conv.contactId)}
-                      className="flex items-center gap-4 flex-1 min-w-0"
-                    >
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-12 h-12 rounded-full overflow-hidden shrink-0 flex items-center justify-center shadow-sm ${avatarColor(conv.contactName)}`}>
                         {conv.contactPhoto ? (
                           <img src={conv.contactPhoto} alt="" className="w-full h-full object-cover" />
@@ -216,7 +221,7 @@ export default function PartnerMessagesPage() {
                       <span className="text-xs text-slate-400 font-medium">{timeAgo(last.createdAt)}</span>
                       <div className="relative">
                         <button
-                          onClick={() => setMenuOpenFor(menuOpenFor === conv.contactId ? null : conv.contactId)}
+                          onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === conv.contactId ? null : conv.contactId); }}
                           className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition"
                         >
                           <MoreVertical size={18} />
@@ -224,7 +229,7 @@ export default function PartnerMessagesPage() {
                         {menuOpenFor === conv.contactId && (
                           <div className="absolute right-0 top-8 bg-white border border-gray-200 shadow-lg rounded-md z-20 w-48 py-1">
                             <button
-                              onClick={() => handleDeleteConversation(conv.contactId)}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.contactId); }}
                               className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2 transition"
                             >
                               <Trash2 size={15} /> Delete conversation
@@ -248,9 +253,7 @@ export default function PartnerMessagesPage() {
             </div>
           ) : (
             <>
-              {/* FIXED HEADER LAYOUT (No more overlap) */}
               <header className="bg-orange-500 text-white px-4 py-4 flex items-center justify-between shrink-0">
-                {/* Left: Back Button */}
                 <div className="flex-1 flex justify-start">
                   <button
                     onClick={() => setActiveContactId(null)}
@@ -261,7 +264,6 @@ export default function PartnerMessagesPage() {
                   </button>
                 </div>
 
-                {/* Center: Contact Info */}
                 <div className="flex-[2] flex items-center justify-center gap-3">
                   <div className={`w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center shadow-sm ${avatarColor(activeConv.contactName)}`}>
                     {activeConv.contactPhoto ? (
@@ -277,7 +279,6 @@ export default function PartnerMessagesPage() {
                   </h1>
                 </div>
 
-                {/* Right: Delete Button */}
                 <div className="flex-1 flex justify-end">
                   <button
                     onClick={() => handleDeleteConversation(activeConv.contactId)}
@@ -293,7 +294,7 @@ export default function PartnerMessagesPage() {
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {activeConv.messages.map((msg) => (
                   <div key={msg._id} className={`flex w-full ${msg.sender === 'provider' ? 'justify-end' : 'justify-start'}`}>
-                    
+
                     {msg.sender === 'contact' ? (
                       // Contact Message Style
                       <div className="flex flex-col max-w-[90%] sm:max-w-[75%]">
@@ -324,12 +325,10 @@ export default function PartnerMessagesPage() {
                         <span className="text-xs text-slate-400 mt-2 ml-1">{timeAgo(msg.createdAt)}</span>
                       </div>
                     ) : (
-                      // Provider (Your) Message Style - FIXED: Black Text & Light Orange Background
+                      // Provider (Your) Message Style
                       <div className="flex flex-col items-end max-w-[90%] sm:max-w-[75%] relative group">
                         <div className="bg-orange-100 border border-orange-200 rounded-xl p-4 shadow-sm flex flex-col gap-1 min-w-[150px] sm:min-w-[200px]">
-                          {/* Akuru Kalu Karala Thiyenne Methana (text-slate-900) */}
                           <p className="text-[15px] text-slate-900 font-medium whitespace-pre-wrap">{msg.text}</p>
-                          
                           <span className="text-[11px] text-slate-500 font-medium text-right mt-1">
                             {timeAgo(msg.createdAt)}
                           </span>

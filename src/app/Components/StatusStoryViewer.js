@@ -25,11 +25,29 @@ export default function StatusStoryViewer({ group, onClose }) {
   const [progress, setProgress] = useState(0);
   const [replyText, setReplyText] = useState('');
   const [isReplying, setIsReplying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false); // ✅ NEW — true while user is holding down (touch or mouse)
 
   const videoRef = useRef(null);
   const timerRef = useRef(null);
+  const isPausedRef = useRef(false); // ✅ NEW — read latest isPaused inside setInterval without restarting it
 
   const activeStatus = statuses[activeIndex];
+
+  // ✅ NEW — keep the ref in sync so the interval always sees the latest value
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  // ✅ NEW — pause/resume the actual <video> element too, so it matches the progress bar
+  useEffect(() => {
+    if (activeStatus?.mediaType === 'video' && videoRef.current) {
+      if (isPaused) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [isPaused, activeStatus]);
 
   const isOwnStatus =
     session?.user?.email && group.provider.email === session.user.email;
@@ -61,6 +79,7 @@ export default function StatusStoryViewer({ group, onClose }) {
 
     clearInterval(timerRef.current);
     setProgress(0);
+    setIsPaused(false); // ✅ NEW — don't carry a held-down pause over to the next status
 
     let duration = 5000;
     if (activeStatus.mediaType === 'video' && videoRef.current) {
@@ -70,6 +89,7 @@ export default function StatusStoryViewer({ group, onClose }) {
     const step = 100;
     let elapsed = 0;
     timerRef.current = setInterval(() => {
+      if (isPausedRef.current) return; // ✅ NEW — held down, don't advance
       elapsed += step;
       setProgress(Math.min((elapsed / duration) * 100, 100));
       if (elapsed >= duration) {
@@ -176,7 +196,15 @@ export default function StatusStoryViewer({ group, onClose }) {
         </div>
       </div>
 
-      <div className="flex-1 w-full max-w-md relative flex items-center justify-center">
+      <div
+        className="flex-1 w-full max-w-md relative flex items-center justify-center"
+        onMouseDown={() => setIsPaused(true)}
+        onMouseUp={() => setIsPaused(false)}
+        onMouseLeave={() => setIsPaused(false)}
+        onTouchStart={() => setIsPaused(true)}
+        onTouchEnd={() => setIsPaused(false)}
+        onTouchCancel={() => setIsPaused(false)}
+      >
         <div className="absolute left-0 top-0 bottom-0 w-1/3 z-20 cursor-w-resize" onClick={handlePrev} />
         <div className="absolute right-0 top-0 bottom-0 w-1/3 z-20 cursor-e-resize" onClick={handleNext} />
 
@@ -184,6 +212,18 @@ export default function StatusStoryViewer({ group, onClose }) {
           <img src={activeStatus.mediaUrl} alt="Status" className="w-full max-h-[75vh] object-contain" />
         ) : (
           <video ref={videoRef} src={activeStatus.mediaUrl} className="w-full max-h-[75vh] object-contain" autoPlay playsInline />
+        )}
+
+        {/* ✅ NEW — subtle pause indicator while held down */}
+        {isPaused && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-black/40 rounded-full p-3">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+            </div>
+          </div>
         )}
       </div>
 

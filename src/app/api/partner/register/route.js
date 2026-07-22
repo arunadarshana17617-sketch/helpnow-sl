@@ -8,7 +8,9 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import ServiceProvider from '@/app/models/ServiceProvider';
 import { v2 as cloudinary } from 'cloudinary';
-import { notifyAdmin } from '@/app/lib/notify'; // ✅ NEW
+import { notifyAdmin } from '@/app/lib/notify';
+import { sendEmail } from '@/app/lib/mailer'; // ✅ NEW
+import { welcomeEmailToProvider } from '@/app/lib/emailTemplates'; // ✅ NEW
 
 // Cloudinary config
 cloudinary.config({
@@ -155,6 +157,19 @@ export async function POST(request) {
       message: `${fullName} registered as a ${profession} (${category}) in ${city || district}. Pending approval.`,
       link: '/admin/providers',
     });
+
+    // ✅ NEW — send welcome email to the newly registered provider
+    // (fire-and-forget-ish: don't let email failure break registration response)
+    const welcomeMail = welcomeEmailToProvider({
+      providerName: fullName,
+      profession,
+      category,
+    });
+    sendEmail({
+      to: email,
+      subject: welcomeMail.subject,
+      html: welcomeMail.html,
+    }).catch((err) => console.error('❌ Welcome email failed:', err));
 
     return NextResponse.json(
       { success: true, providerId: provider._id },

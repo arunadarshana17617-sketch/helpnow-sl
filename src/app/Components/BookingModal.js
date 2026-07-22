@@ -172,7 +172,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
       } else {
         // TIMEOUT or UNAVAILABLE — localhost HTTP gedi wenas wenawa
         // User ku warning pennanna
-        setLocationError('GPS timeout. Browser settings eke location allow karagena retry karanna.');
+        setLocationError('GPS timeout. Please allow location access in your browser settings and try again.');
       }
       setLocationOn(false);
     } finally {
@@ -281,10 +281,10 @@ export default function BookingModal({ provider: initialProvider, service, onClo
               <User size={40} className="text-orange-500" />
             </div>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              {liveProvider.fullName} book karanna login karanna one
+              You need to log in to book {liveProvider.fullName}
             </h3>
             <p className="text-gray-500 text-sm mb-6">
-              Google account ekata login karanawa. Account nattam automatically hadagannawa.
+              Sign in with your Google account. If you don't have one yet, it will be created automatically.
             </p>
             <button
               onClick={() => signIn('google', { callbackUrl: window.location.href })}
@@ -308,7 +308,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
   const handleCustomerNext = (e) => {
     e.preventDefault();
     if (!customerData.phone || !customerData.address || !customerData.district) {
-      setError('Phone, district, address fill karanna one (required fields)');
+      setError('Please fill in phone, district, and address (required fields)');
       return;
     }
     setError('');
@@ -318,7 +318,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!jobData.jobDescription || !jobData.preferredDate) {
-      setError('Job description and preferred date fill karanna one');
+      setError('Please fill in job description and preferred date');
       return;
     }
 
@@ -430,7 +430,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
             </div>
 
             <p className="text-xs text-gray-400">
-              Meka oyage first booking nam me details fill karanna one. Natuwa me already saved wenawa.
+              If this is your first booking, please fill in these details. Otherwise, they're already saved for you.
             </p>
 
             {/* Phone */}
@@ -530,13 +530,13 @@ export default function BookingModal({ provider: initialProvider, service, onClo
                       </p>
                       {locationFetching ? (
                         <p className="text-xs text-blue-500 font-medium flex items-center gap-1">
-                          <Loader2 size={11} className="animate-spin" /> ඔයාගේ location හොයනවා...
+                          <Loader2 size={11} className="animate-spin" /> Finding your location...
                         </p>
                       ) : locationDenied && locationAttempted ? (
                         <p className="text-xs text-amber-600 font-medium">⚠ Location blocked</p>
                       ) : locationOn && distLabel ? (
                         <p className="text-xs text-green-700 font-medium">
-                          ✓ Location ON — {liveProvider.fullName} ඔයාගෙන් <strong>{distLabel}</strong> duren innowa
+                          ✓ Location ON — {liveProvider.fullName} is <strong>{distLabel}</strong> away from you
                         </p>
                       ) : locationOn ? (
                         <p className="text-xs text-green-600 font-medium">✓ Location ON</p>
@@ -572,7 +572,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
                   <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
                     <AlertCircle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
                     <span>
-                      Browser eka location block karala. Address bar eke 🔒 icon click → <strong>Location → Allow</strong> karanna, eka passe "My Location" click karanna.
+                      Your browser has blocked location access. Click the 🔒 icon in the address bar → <strong>Location → Allow</strong>, then click "My Location" again.
                     </span>
                   </div>
                 )}
@@ -582,10 +582,10 @@ export default function BookingModal({ provider: initialProvider, service, onClo
                   <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
                     <AlertCircle size={13} className="text-red-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-semibold mb-0.5">GPS work kale nae</p>
+                      <p className="font-semibold mb-0.5">GPS didn't work</p>
                       <p>{locationError}</p>
                       {window.location.protocol === 'http:' && !window.location.hostname.includes('localhost') && (
-                        <p className="mt-1 text-amber-700 font-medium">⚠ HTTP site wala GPS block wenawa. HTTPS use karanna.</p>
+                        <p className="mt-1 text-amber-700 font-medium">⚠ GPS is blocked on HTTP sites. Please use HTTPS.</p>
                       )}
                     </div>
                   </div>
@@ -600,7 +600,7 @@ export default function BookingModal({ provider: initialProvider, service, onClo
                     className="mt-3 flex items-center gap-2 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 hover:bg-blue-100 transition w-fit"
                   >
                     <MapPin size={12} />
-                    Google Maps eke directions balanna
+                    View directions on Google Maps
                   </a>
                 )}
               </div>
@@ -609,8 +609,8 @@ export default function BookingModal({ provider: initialProvider, service, onClo
               <div className="bg-blue-50 rounded-xl p-3 flex items-center gap-2 border border-blue-100">
                 <MapPin size={16} className="text-blue-500 flex-shrink-0" />
                 <p className="text-xs text-blue-700">
-                  Provider ge area: <strong>{liveProvider.city}, {liveProvider.district}</strong>
-                  {liveProvider.maxDistance && ` · ${liveProvider.maxDistance}km radius ඇතුළේ travels`}
+                  Provider's area: <strong>{liveProvider.city}, {liveProvider.district}</strong>
+                  {liveProvider.maxDistance && ` · travels within a ${liveProvider.maxDistance}km radius`}
                 </p>
               </div>
             )}

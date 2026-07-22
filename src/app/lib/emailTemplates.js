@@ -80,6 +80,30 @@ export function bookingRequestEmailToProvider({ providerName, customerName, cust
 }
 
 // ─────────────────────────────────────────────────────────
+// 🎉  Provider ට — Account eka register kalama (welcome email)
+// ─────────────────────────────────────────────────────────
+export function welcomeEmailToProvider({ providerName, profession, category }) {
+  return {
+    subject: `🎉 Welcome to HelpNow SL, ${providerName}!`,
+    html: baseLayout({
+      headerColor: '#16a34a',
+      headerTitle: '🎉 Welcome to HelpNow SL!',
+      bodyHtml: `
+        <p style="font-size:16px;color:#374151;">Hi <strong>${providerName}</strong>,</p>
+        <p style="color:#6b7280;">Thank you for registering as a <strong>${profession}</strong> (${category}) on HelpNow SL! We're excited to have you join our community of trusted service providers.</p>
+        <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:15px;border-radius:4px;margin:20px 0;">
+          <h3 style="margin:0 0 10px;color:#15803d;">📋 What's Next?</h3>
+          <p style="margin:0;color:#374151;">Your profile is currently <strong>pending review</strong> by our admin team. Once approved, you'll start receiving job requests from customers near you.</p>
+        </div>
+        <p style="color:#6b7280;">We'll notify you by email as soon as your account is approved — usually within 24 hours.</p>
+        ${ctaButton('📊 Go to My Dashboard', `${appUrl}/partner/dashboard`, '#16a34a')}
+        <p style="color:#9ca3af;font-size:13px;text-align:center;">Questions? Just reply to this email — we're happy to help.</p>
+      `
+    })
+  };
+}
+
+// ─────────────────────────────────────────────────────────
 // 2️⃣  Customer ට — Provider confirmed කළාම
 // ─────────────────────────────────────────────────────────
 export function bookingConfirmedEmailToCustomer({ customerName, providerName, providerPhone, providerEmail, serviceCategory, preferredDate, estimatedDays, dailyRate, jobDescription, bookingId }) {

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Star, X, CheckCircle2, Loader2 } from 'lucide-react';
 
-const RATING_LABELS = ['', 'දුර්වලයි', 'සාමාන්‍යයි', 'හොඳයි', 'ඉතා හොඳයි', 'විශිෂ්ටයි! 🎉'];
+const RATING_LABELS = ['', 'Poor', 'Average', 'Good', 'Very Good', 'Excellent! 🎉'];
 
 export default function RatingModal({ booking, onClose, onRated }) {
   const [hovered, setHovered]   = useState(0);
@@ -28,7 +28,7 @@ export default function RatingModal({ booking, onClose, onRated }) {
         // 2 seconds පස්සේ auto-close
         setTimeout(() => onClose(), 2000);
       } else {
-        alert(data.error || 'Rating දෙන්න බැරි උනා');
+        alert(data.error || 'Failed to submit rating');
         setSubmitting(false);
       }
     } catch {
@@ -53,8 +53,8 @@ export default function RatingModal({ booking, onClose, onRated }) {
         {done ? (
           <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
             <CheckCircle2 size={56} className="text-green-500 mb-4" />
-            <p className="text-xl font-bold text-gray-900 mb-1">ස්තූතියි!</p>
-            <p className="text-sm text-gray-500 mb-4">ඔයාගේ rating එකෙන් අනිත් අයට help වෙනවා</p>
+            <p className="text-xl font-bold text-gray-900 mb-1">Thank you!</p>
+            <p className="text-sm text-gray-500 mb-4">Your rating helps others find great providers</p>
             <div className="flex gap-1 mb-2">
               {[1,2,3,4,5].map(i => (
                 <Star
@@ -91,8 +91,8 @@ export default function RatingModal({ booking, onClose, onRated }) {
 
             {/* ── Body ── */}
             <div className="px-6 py-5 text-center">
-              <p className="text-sm text-gray-600 mb-1">Service එකට rating දෙන්නකෝ</p>
-              <p className="text-xs text-gray-400 mb-4">ඔයාගේ experience එක share කරන්න</p>
+              <p className="text-sm text-gray-600 mb-1">Rate this service</p>
+              <p className="text-xs text-gray-400 mb-4">Share your experience</p>
 
               {/* Stars */}
               <div className="flex justify-center gap-2 mb-2">
@@ -119,7 +119,7 @@ export default function RatingModal({ booking, onClose, onRated }) {
 
               {/* Rating label */}
               <p className={`text-sm font-semibold h-6 transition-all ${selected || hovered ? 'text-orange-500' : 'text-gray-300'}`}>
-                {RATING_LABELS[hovered || selected] || 'Star එකක් click කරන්න'}
+                {RATING_LABELS[hovered || selected] || 'Click a star'}
               </p>
 
               {/* Submit */}
@@ -130,7 +130,7 @@ export default function RatingModal({ booking, onClose, onRated }) {
               >
                 {submitting
                   ? <><Loader2 size={16} className="animate-spin" /> Saving...</>
-                  : 'Rating Submit කරන්න ⭐'
+                  : 'Submit Rating ⭐'
                 }
               </button>
 
@@ -138,7 +138,7 @@ export default function RatingModal({ booking, onClose, onRated }) {
                 onClick={onClose}
                 className="mt-3 text-xs text-gray-400 hover:text-gray-500 underline transition"
               >
-                දැනට skip කරන්න
+                Skip for now
               </button>
             </div>
           </>
